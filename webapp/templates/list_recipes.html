@@ -1,0 +1,80 @@
+{% extends "layout.html" %}
+{% set active_page = "list_recipes" %}
+{% set page_desc = "List of cocktails" %}
+{% block heading %}
+    <a href="{{ url_for('new_recipe') }}" class="d-none d-sm-inline-block btn btn-sm btn-primary shadow-sm">
+        <i class="fas fa-plus fa-sm text-white-50"></i> Add</a>
+{% endblock %}
+{% block content %}
+    <!-- Cocktails DataTables -->
+    <div class="card shadow mb-4">
+        <div class="card-header py-3">
+            <h6 class="m-0 font-weight-bold text-primary">Cocktails</h6>
+        </div>
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-bordered" id="dataTable">
+                    <thead>
+                    <tr>
+                        <th>#</th>
+                        <th>Name</th>
+                        <th>Notes</th>
+                        <th>Ingredients</th>
+                        <th></th>
+                    </tr>
+                    </thead>
+                    <tfoot>
+                    <tr>
+                        <th>#</th>
+                        <th>Name</th>
+                        <th>Notes</th>
+                        <th>Ingredients</th>
+                        <th></th>
+                    </tr>
+                    </tfoot>
+                    <tbody>
+                    {% for row in recipes %}
+                        <tr>
+                            <td>{{ row.id }}</td>
+                            <td>{{ row.name }}</td>
+                            <td>{% if row.notes %}{{ row.notes }}{% endif %}</td>
+                            <td>
+                                <ul class="mb-0">
+                                    {% for ingredient in row.ingredients %}
+                                        <li>{{ ingredient.name }} - {{ ingredient.quantity }}mL</li>
+                                    {% endfor %}
+                                </ul>
+                            </td>
+                            <td>
+                                <div class="btn-group btn-group-sm" role="group">
+                                    <button type="button" class="btn btn-danger">Delete</button>
+                                    <button type="button" class="btn btn-primary">Edit</button>
+                                    <button type="button" class="btn btn-primary">Make</button>
+                                    <!-- TODO: Button action -->
+                                </div>
+                            </td>
+                        </tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+{% endblock %}
+
+{% block javascript %}
+    <script src="https://cdn.datatables.net/1.10.21/js/jquery.dataTables.min.js"></script>
+    <script src="https://cdn.datatables.net/1.10.21/js/dataTables.bootstrap4.min.js"></script>
+    <script>
+        $(document).ready(function () {
+            $('#dataTable').DataTable({
+                "columnDefs": [{
+                    "className": "text-center",
+                    "searchable": false,
+                    "sortable": false,
+                    "targets": [4]
+                }]
+            });
+        });
+    </script>
+{% endblock %}

@@ -1,0 +1,165 @@
+{% extends "layout.html" %}
+{% set active_page = "new_recipe" %}
+{% set page_desc = "New recipe" %}
+{% block content %}
+    <div class="row">
+        <!-- Content Column -->
+        <div class="col-xl-4 col-lg-5">
+            <!-- Cocktail main settings Card -->
+            <div class="card shadow mb-4">
+                <div class="card-header py-3">
+                    <h6 class="m-0 font-weight-bold text-primary">Cocktail settings</h6>
+                </div>
+                <div class="card-body">
+                    <form id="cocktailForm" novalidate>
+                        <div class="form-group">
+                            <label for="inputCocktailName">Name:</label>
+                            <input class="form-control form-control-solid" id="inputCocktailName"
+                                   type="text" placeholder="Cocktail name" name="name" required>
+                            <div class="invalid-feedback">
+                                Please provide a valid name.
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label for="inputNotes">Notes:</label>
+                            <textarea class="form-control form-control-solid" id="inputNotes" maxlength="255"
+                                      name="notes" rows="3"></textarea>
+                        </div>
+                        <div class="form-group">
+                            <label>Components:</label>
+                            <ul class="list-group" id="list">
+                            </ul>
+                            <input class="form-control" type="text" id="inputComponents" hidden required/>
+                            <div class="invalid-feedback">
+                                Please add components to the recipe.
+                            </div>
+                        </div>
+                        <button type="button" class="btn btn-danger" onclick="clearList()">Reset</button>
+                        <button type="submit" class="btn btn-primary float-right">Save cocktail</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+        <!-- Content Column -->
+        <div class="col-xl-8 col-lg-7">
+            <!-- Add component Card -->
+            <div class="card shadow mb-4">
+                <div class="card-header py-3">
+                    <h6 class="m-0 font-weight-bold text-primary">Add component</h6>
+                </div>
+                <div class="card-body">
+                    <form id="ingredientForm" class="needs-validation" novalidate>
+                        <div class="form-group">
+                            <label for="selectIngredient">Select an ingredient:</label>
+                            <select class="form-control form-control-solid" id="selectIngredient">
+                                {% for i in ingredients %}
+                                    <option value="{{ i.id }}">{{ i.name }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="inputVolume">Volume:</label>
+                            <div class="input-group">
+                                <input class="form-control form-control-solid" id="inputVolume"
+                                       type="number" min="0" placeholder="0" name="volume" required>
+                                <div class="input-group-append">
+                                    <span class="input-group-text" id="basic-addon2">mL</span>
+                                </div>
+                                <div class="invalid-feedback">
+                                    Please provide a valid volume.
+                                </div>
+                            </div>
+                        </div>
+                        <button type="submit" class="btn btn-primary float-right">Add</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+{% endblock %}
+
+{% block javascript %}
+    <script>
+        let ingredientForm = $('#ingredientForm');
+        let cocktailForm = $('#cocktailForm');
+
+        ingredientForm.submit(function () {
+            if (ingredientForm[0].checkValidity() === true) {
+                pushIngredient();
+            }
+            ingredientForm.addClass('was-validated');
+            return false;
+        });
+
+        cocktailForm.submit(function () {
+            if (cocktailForm[0].checkValidity() === true) {
+                addCocktail();
+            }
+            cocktailForm.addClass('was-validated');
+            return false;
+        });
+
+        function clearList() {
+            $('#inputCocktailName').val('');
+            $('#list').empty();
+            $('#inputComponents').val("");
+            cocktailForm.removeClass('was-validated');
+        }
+
+        function pushIngredient() {
+            let ingredientName = $('#selectIngredient option:selected').text();
+            let ingredientId = $('#selectIngredient option:selected').val();
+            let ingredientVol = $('#inputVolume').val();
+            if (ingredientVol) {
+                // Delete existing recipe component if it was already added
+                $('.cocktail-ingredient').each(function () {
+                    if (this.value === ingredientId) {
+                        remove(this);
+                        return true;
+                    }
+                });
+                let li = $('<li></li>', {
+                    class: 'list-group-item',
+                    text: ingredientName + ' - ' + ingredientVol + 'mL'
+                });
+                li.append('<input type="hidden" class="cocktail-ingredient" name="ingredients[]" value="' + ingredientId + '"/>');
+                li.append('<input type="hidden" class="cocktail-ingredient" name="volumes[]" value="' + ingredientVol + '"/>');
+                li.append('<button type="button" class="btn btn-sm p-0 float-right" onclick="remove(this)"><span class="fas fa-times-square" aria-hidden="true"></span></button>');
+                $('#list').append(li);
+                $('#inputComponents').val("true");
+            }
+        }
+
+        function remove(e) {
+            $(e).parent().remove();
+            if ($(e).parent().siblings().length === 0)
+                $('#inputComponents').val("");
+        }
+
+        function addCocktail() {
+            $.ajax({
+                type: 'post',
+                data: cocktailForm.serialize(),
+                success: function () {
+                    clearList();
+                    $('#alertCocktail').alert('close');
+                    $('div.row').before('<div id="alertCocktail" class="alert alert-success alert-dismissible fade show" role="alert">\n' +
+                        '        Recipe successfully added!\n' +
+                        '        <button type="button" class="close" data-dismiss="alert" aria-label="Close">\n' +
+                        '            <span aria-hidden="true">&times;</span>\n' +
+                        '        </button>\n' +
+                        '    </div>');
+                },
+                error: function () {
+                    $('#alertCocktail').alert('close');
+                    $('div.row').before('<div id="alertCocktail" class="alert alert-danger alert-dismissible fade show" role="alert">\n' +
+                        '        Cannot add recipe\n' +
+                        '        <button type="button" class="close" data-dismiss="alert" aria-label="Close">\n' +
+                        '            <span aria-hidden="true">&times;</span>\n' +
+                        '        </button>\n' +
+                        '    </div>');
+                }
+            });
+        }
+    </script>
+{% endblock %}

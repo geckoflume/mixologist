@@ -1,0 +1,456 @@
+{% extends "layout.html" %}
+{% set active_page = "index" %}
+{% set page_desc = "Dashboard" %}
+{% block content %}
+    <div class="row">
+        <!-- Status Card -->
+        <div class="col-xl mb-4">
+            <div id="status" class="card border-left-primary shadow h-100 py-2">
+                <div class="card-body">
+                    <div class="row no-gutters align-items-center">
+                        <div class="col mr-2">
+                            <div id="statusTitle" class="text-xs font-weight-bold text-primary text-uppercase mb-1">
+                                Status
+                            </div>
+                            <div class="h5 mb-0 font-weight-bold text-gray-800">
+                                <span id="statusMessage">Ready to make a new drink</span>
+                                <div class="progress progress-sm mb-2" hidden>
+                                    <div id="progressBar"
+                                         class="progress-bar bg-primary progress-bar-striped progress-bar-animated"
+                                         role="progressbar" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100">
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-auto">
+                            <i id="statusIcon" class="fas fa-info-circle fa-2x text-gray-300"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <!-- Content Row -->
+    <div class="row">
+        <!-- Content Column -->
+        <div class="col-lg">
+            <!-- Brew cocktail Card -->
+            <div class="card shadow mb-4">
+                <div class="card-header py-3">
+                    <h6 class="m-0 font-weight-bold text-primary">Brew cocktail</h6>
+                </div>
+                <div class="card-body">
+                    <form id="formCocktail">
+                        <div class="form-group">
+                            <label for="selectCocktail">Select a cocktail:</label>
+                            <select class="form-control form-control-solid" id="selectCocktail" name="cocktail"
+                                    required>
+                                {% for row in recipes %}
+                                    <option ingredients='{{ row.ingredients | tojson }}'
+                                            value="{{ row.id }}">{{ row.name }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="row">
+                            <div class="col-7">
+                                <ul id="ingredients" class="list-group">
+                                </ul>
+                            </div>
+                            <div class="col-5">
+                                <button type="submit" id="makeButton" class="btn btn-primary float-right" disabled>Make
+                                    it!
+                                </button>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Content Row -->
+    <div class="row">
+        <!-- Area Chart -->
+        <div class="col-xl-8 col-lg-7">
+            <div class="card shadow mb-4">
+                <!-- Card Header - Dropdown -->
+                <div class="card-header py-3 d-flex flex-row align-items-center justify-content-between">
+                    <h6 class="m-0 font-weight-bold text-primary">Cocktails made since the 10 last days</h6>
+                </div>
+                <!-- Card Body -->
+                <div class="card-body">
+                    <div class="chart-area">
+                        <canvas id="areaChart"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Pie Chart -->
+        <div class="col-xl-4 col-lg-5">
+            <div class="card shadow mb-4">
+                <!-- Card Header - Dropdown -->
+                <div class="card-header py-3 d-flex flex-row align-items-center justify-content-between">
+                    <h6 class="m-0 font-weight-bold text-primary">Cocktails made</h6>
+                </div>
+                <!-- Card Body -->
+                <div class="card-body">
+                    <div class="chart-pie pt-4 pb-2">
+                        <canvas id="pieChart"></canvas>
+                    </div>
+                    <div class="mt-4 text-center small">
+                        {% for label, color in top_zip %}
+                            <span class="mr-2"><i class="fas fa-circle {{ color }}"></i> {{ label }}</span>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Content Row -->
+    <div class="row">
+        <!-- Content Column -->
+        <div class="col-lg mb-4">
+            <!-- Capacities Card -->
+            <div class="card shadow mb-4">
+                <div class="card-header py-3">
+                    <h6 class="m-0 font-weight-bold text-primary">Capacities</h6>
+                </div>
+                <div class="card-body">
+                    {% for b in bottles %}
+                        {% if b.enabled %}
+                            <h4 class="small font-weight-bold">Bottle {{ b.id }} - {{ b.name }} ({{ b.contents }})
+                                <span class="float-right">{{ (b.percentage)|round|int }}%</span>
+                            </h4>
+                            <div class="progress mb-4">
+                                <div class="progress-bar {% if b.percentage > 66.66 %}bg-success{% elif b.percentage > 33.33 %}bg-warning{% else %}bg-danger{% endif %}"
+                                     role="progressbar"
+                                     style="width: {{ b.percentage }}%"
+                                     aria-valuenow="{{ b.percentage }}" aria-valuemin="0"
+                                     aria-valuemax="100">{{ b.actual_volume }}/{{ b.capacity }}mL
+                                </div>
+                            </div>
+                        {% endif %}
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    </div>
+{% endblock %}
+
+{% block javascript %}
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/2.9.3/Chart.min.js"></script>
+    <script src="/static/js/chartjs-plugin-doughnutlabel.min.js"></script>
+    <script>
+        // Cocktails made last x days Area Chart
+        var ctx = document.getElementById("areaChart");
+        new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: {{ date_labels | tojson }},
+                datasets: [{
+                    label: "Cocktails",
+                    lineTension: 0.3,
+                    backgroundColor: "rgba(78, 115, 223, 0.05)",
+                    borderColor: "rgba(78, 115, 223, 1)",
+                    pointRadius: 3,
+                    pointBackgroundColor: "rgba(78, 115, 223, 1)",
+                    pointBorderColor: "rgba(78, 115, 223, 1)",
+                    pointHoverRadius: 3,
+                    pointHoverBackgroundColor: "rgba(78, 115, 223, 1)",
+                    pointHoverBorderColor: "rgba(78, 115, 223, 1)",
+                    pointHitRadius: 10,
+                    pointBorderWidth: 2,
+                    data: {{ day_values | tojson }},
+                }],
+            },
+            options: {
+                maintainAspectRatio: false,
+                layout: {
+                    padding: {
+                        left: 10,
+                        right: 25,
+                        top: 25,
+                        bottom: 0
+                    }
+                },
+                scales: {
+                    xAxes: [{
+                        time: {
+                            unit: 'date'
+                        },
+                        gridLines: {
+                            display: false,
+                            drawBorder: false
+                        },
+                        ticks: {
+                            maxTicksLimit: 7
+                        }
+                    }],
+                    yAxes: [{
+                        ticks: {
+                            min: 0,
+                            stepSize: 1,
+                            maxTicksLimit: 5,
+                            padding: 10
+                        },
+                        gridLines: {
+                            color: "rgb(234, 236, 244)",
+                            zeroLineColor: "rgb(234, 236, 244)",
+                            drawBorder: false,
+                            borderDash: [2],
+                            zeroLineBorderDash: [2]
+                        }
+                    }],
+                },
+                legend: {
+                    display: false
+                },
+                tooltips: {
+                    backgroundColor: "rgb(255,255,255)",
+                    bodyFontColor: "#858796",
+                    titleMarginBottom: 10,
+                    titleFontColor: '#6e707e',
+                    titleFontSize: 14,
+                    borderColor: '#dddfeb',
+                    borderWidth: 1,
+                    xPadding: 15,
+                    yPadding: 15,
+                    displayColors: false,
+                    intersect: false,
+                    mode: 'index',
+                    caretPadding: 10,
+                    callbacks: {
+                        label: function (tooltipItem, chart) {
+                            let datasetLabel = chart.datasets[tooltipItem.datasetIndex].label || '';
+                            return datasetLabel + ': ' + tooltipItem.yLabel;
+                        }
+                    }
+                }
+            }
+        });
+
+        function getTotal(myChart) {
+            return myChart.config.data.datasets[0].data.reduce((a, b) => a + b, 0);
+        }
+
+        // Cocktails made Pie Chart
+        var ctx = document.getElementById("pieChart");
+        new Chart(ctx, {
+            type: 'doughnut',
+            data: {
+                labels: {{ top_labels | tojson }},
+                datasets: [{
+                    data: {{ top_values | tojson }},
+                    backgroundColor: ['#4e73df', '#1cc88a', '#36b9cc', '#f6c23e', '#e74a3b', '#f8f9fc'],
+                    hoverBackgroundColor: ['#2e59d9', '#17a673', '#2c9faf', '#f4b619', '#e02d1b', '#dde2f1'],
+                    hoverBorderColor: "rgba(234, 236, 244, 1)",
+                }],
+            },
+            options: {
+                maintainAspectRatio: false,
+                tooltips: {
+                    backgroundColor: "rgb(255,255,255)",
+                    bodyFontColor: "#858796",
+                    borderColor: '#dddfeb',
+                    borderWidth: 1,
+                    xPadding: 15,
+                    yPadding: 15,
+                    displayColors: false,
+                    caretPadding: 10,
+                },
+                legend: {
+                    display: false
+                },
+                animation: {
+                    animateScale: true,
+                    animateRotate: true
+                }, plugins: {
+                    doughnutlabel: {
+                        labels: [
+                            {
+                                text: 'Total:',
+                                font: {
+                                    size: '20',
+                                    style: 'bold',
+                                },
+                                color: '#5a5c69'
+                            },
+                            {
+                                text: getTotal,
+                                font: {
+                                    size: '20',
+                                    style: 'bold',
+                                },
+                                color: '#5a5c69'
+                            }
+                        ]
+                    }
+                },
+                cutoutPercentage: 80,
+            },
+        });
+
+        let form = $('#formCocktail');
+        form.submit(function () {
+            makeDrink();
+            return false;
+        });
+
+        function makeDrink() {
+            $.ajax({
+                type: 'post',
+                data: form.serialize(),
+                error: function () {
+                    statusError("Error", "Server error, unable to make the drink");
+                }
+            });
+        }
+
+        let statusStyles = '(primary|success|warning|danger)';
+        let statusIcons = '(info-circle|check-circle|exclamation-circle|times-circle)';
+        let status = $('#status');
+        let statusTitle = $('#statusTitle');
+        let statusMessage = $('#statusMessage');
+        let progressBar = $('#progressBar');
+        let statusIcon = $('#statusIcon');
+
+        function statusClear() {
+            let borderRegex = new RegExp('\\sborder-left-' + statusStyles, 'g');
+            let titleRegex = new RegExp('\\stext-' + statusStyles, 'g');
+            let bgRegex = new RegExp('\\s(bg-' + statusStyles + '|progress-bar-striped|progress-bar-animated)', 'g');
+            let iconRegex = new RegExp('\\sfa-' + statusIcons, 'g');
+            status.removeClass(function (index, className) {
+                return (className.match(borderRegex) || []).join(' ');
+            });
+            statusTitle.removeClass(function (index, className) {
+                return (className.match(titleRegex) || []).join(' ');
+            });
+            progressBar.removeClass(function (index, className) {
+                return (className.match(bgRegex) || []).join(' ');
+            });
+            statusIcon.removeClass(function (index, className) {
+                return (className.match(iconRegex) || []).join(' ');
+            });
+        }
+
+        function statusError(title, msg) {
+            statusClear();
+            status.addClass("border-left-danger");
+            statusTitle.addClass("text-danger");
+            progressBar.addClass("bg-danger");
+            statusIcon.addClass("fa-times-circle");
+            statusTitle.text(title);
+            statusMessage.text(msg);
+        }
+
+        function statusReady(title, msg) {
+            statusClear();
+            status.addClass("border-left-primary");
+            statusTitle.addClass("text-primary");
+            progressBar.addClass("bg-primary");
+            progressBar.addClass("progress-bar-striped");
+            progressBar.addClass("progress-bar-animated");
+            statusIcon.addClass("fa-info-circle");
+            statusTitle.text(title);
+            statusMessage.text(msg);
+        }
+
+        function statusWarning(title, msg) {
+            statusClear();
+            status.addClass("border-left-warning");
+            statusTitle.addClass("text-warning");
+            progressBar.addClass("bg-warning");
+            statusIcon.addClass("fa-exclamation-circle");
+            statusTitle.text(title);
+            statusMessage.text(msg);
+        }
+
+        function statusSuccess(title, msg) {
+            statusClear();
+            status.addClass("border-left-success");
+            statusTitle.addClass("text-success");
+            progressBar.addClass("bg-success");
+            statusIcon.addClass("fa-check-circle");
+            statusTitle.text(title);
+            statusMessage.text(msg);
+        }
+
+        function progressBarVal(value) {
+            if (value > -1) {
+                progressBar.parent().removeAttr('hidden');
+                progressBar.css('width', value + '%');
+                progressBar.attr('aria-valuenow', value);
+            } else
+                progressBar.parent().attr('hidden', 'hidden');
+        }
+
+        let bottles = {{ bottles_simple | tojson }};
+
+        function updateIngredients() {
+            let list = $('#ingredients');
+            let makeButton = $('#makeButton');
+            let canMake = true;
+
+            list.empty();
+            let ingredients = JSON.parse($("#selectCocktail option:selected").attr('ingredients'));
+
+            for (const i of ingredients) {
+                let c = 'list-group-item';
+                let bottle = bottles.find(el => el.ingredient_id === i.id);
+                if (bottle) {
+                    if (bottle.actual_volume >= i.quantity) {
+                        c += ' list-group-item-success';
+                    } else {
+                        c += ' list-group-item-warning';
+                        if (canMake)
+                            canMake = false;
+                    }
+                } else {
+                    c += ' list-group-item-danger';
+                    if (canMake)
+                        canMake = false;
+                }
+                let li = $('<li></li>', {
+                    class: c,
+                    text: i.name + ' - ' + i.quantity + 'mL'
+                });
+                list.append(li);
+            }
+            if (canMake)
+                makeButton.removeAttr('disabled');
+            else
+                makeButton.attr('disabled', 'disabled');
+        }
+
+        $(document).ready(function () {
+            function parseStatus(msg) {
+                switch (msg.type) {
+                    case 'error':
+                        statusError(msg.title, msg.text);
+                        break;
+                    case 'ready':
+                        statusReady(msg.title, msg.text);
+                        break;
+                    case 'warning':
+                        statusWarning(msg.title, msg.text);
+                        break;
+                    case 'success':
+                        statusSuccess(msg.title, msg.text);
+                        break;
+                }
+                progressBarVal(msg.val);
+            }
+
+            parseStatus({{ status | tojson }});
+            let socket = io.connect('http://' + document.domain + ':' + location.port);
+            socket.on('connect', function () {
+                socket.on('status', parseStatus)
+            })
+
+            $("#selectCocktail").change(updateIngredients);
+            updateIngredients();
+        });
+    </script>
+{% endblock %}

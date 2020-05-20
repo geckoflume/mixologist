@@ -1,0 +1,154 @@
+{% extends "layout.html" %}
+{% set active_page = "settings" %}
+{% set page_desc = "Settings" %}
+{% block content %}
+    <div class="row">
+        <!-- Content Column -->
+        <div class="col-lg">
+            <!-- Glass config Card -->
+            <div class="card shadow mb-4">
+                <div class="card-header py-3">
+                    <h6 class="m-0 font-weight-bold text-primary">Glass configuration</h6>
+                </div>
+                <div class="card-body">
+                    <form novalidate>
+                        <div class="form-group">
+                            <label for="inputGlassCapacity">Capacity:</label>
+                            <div class="input-group">
+                                <input class="form-control form-control-solid" id="inputGlassCapacity"
+                                       type="number" min="0" placeholder="700" required>
+                                <div class="input-group-append">
+                                    <span class="input-group-text">mL</span>
+                                </div>
+                                <div class="invalid-feedback">
+                                    Please provide a valid volume.
+                                </div>
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label for="glassLevel">Current level:</label>
+                            <div class="input-group">
+                                <input class="form-control form-control-solid" id="glassLevel" type="number" readonly>
+                                <div class="input-group-append">
+                                    <span class="input-group-text">mL</span>
+                                </div>
+                            </div>
+                        </div>
+                        <button type="submit" class="btn btn-secondary">Load cell tare</button>
+                        <button type="submit" class="btn btn-primary float-right">Apply</button>
+                        <!-- TODO: glass settings -->
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+    <!-- Content Row -->
+    <div class="row">
+        {% for b in bottles %}
+            <!-- Content Column -->
+            <div class="col-lg">
+                <!-- Bottle {{ b.id }} config Card -->
+                <div class="card shadow mb-4">
+                    <div class="card-header py-3">
+                        <h6 class="m-0 font-weight-bold text-primary">Bottle {{ b.id }} configuration</h6>
+                    </div>
+                    <div class="card-body">
+                        <form id="formBottle{{ b.id }}" novalidate>
+                            <div class="form-group">
+                                <div class="custom-control custom-checkbox">
+                                    <input class="custom-control-input" id="enableBottle{{ b.id }}" type="checkbox"
+                                           name="enabled" {% if b.enabled %} checked{% endif %}>
+                                    <label class="custom-control-label" for="enableBottle{{ b.id }}">Enabled</label>
+                                </div>
+                            </div>
+                            <div class="form-group">
+                                <label for="inputBottleName{{ b.id }}">Name:</label>
+                                <input class="form-control form-control-solid" id="inputBottleName{{ b.id }}"
+                                       type="text" placeholder="Bottle name" name="name" value="{{ b.name }}">
+                            </div>
+                            <div class="form-group">
+                                <label for="inputBottleContents{{ b.id }}">Contents:</label>
+                                <select class="form-control form-control-solid" name="contents"
+                                        id="inputBottleContents{{ b.id }}">
+                                    {% for i in ingredients %}
+                                        <option {% if b.ingredient_id==i.id %}selected="selected"{% endif %}
+                                                value="{{ i.id }}">{{ i.name }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label for="inputBottleCapacity{{ b.id }}">Capacity:</label>
+                                <div class="input-group">
+                                    <input class="form-control form-control-solid" id="inputBottleCapacity{{ b.id }}"
+                                           type="number" min="0" step="5" placeholder="700" name="capacity"
+                                           value="{{ b.capacity }}" required>
+                                    <div class="input-group-append">
+                                        <span class="input-group-text">mL</span>
+                                    </div>
+                                    <div class="invalid-feedback">
+                                        Please provide a valid capacity.
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="form-group">
+                                <label for="inputBottleLevel{{ b.id }}">Current level:</label>
+                                <div class="input-group">
+                                    <input class="form-control form-control-solid" id="inputBottleLevel{{ b.id }}"
+                                           type="number" min="0" value="{{ b.actual_volume }}" readonly>
+                                    <div class="input-group-append">
+                                        <span class="input-group-text">mL</span>
+                                    </div>
+                                </div>
+                            </div>
+                            <button type="button" class="btn btn-secondary">Load cell tare</button>
+                            <!-- TODO: call cell tare method -->
+                            <button type="submit" class="btn btn-primary float-right">Apply</button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        {% endfor %}
+    </div>
+{% endblock %}
+
+
+{% block javascript %}
+    <script>
+        for (let i = 1; i < 5; i++) {
+            let form = $('#formBottle' + i);
+            form.submit(function () {
+                if (form[0].checkValidity() === true) {
+                    applySettings(i);
+                }
+                form.addClass('was-validated');
+                return false;
+            });
+        }
+
+        function applySettings(id) {
+            let form = $('#formBottle' + id);
+            $.ajax({
+                type: 'post',
+                data: form.serialize() + "&id=" + id,
+                success: function () {
+                    $('#alertSettings' + id).alert('close');
+                    form.before('<div id="alertSettings' + id + '" class="alert alert-success alert-dismissible fade show" role="alert">\n' +
+                        '        Settings saved!\n' +
+                        '        <button type="button" class="close" data-dismiss="alert" aria-label="Close">\n' +
+                        '            <span aria-hidden="true">&times;</span>\n' +
+                        '        </button>\n' +
+                        '    </div>');
+                },
+                error: function () {
+                    $('#alertSettings' + id).alert('close');
+                    form.before('<div id="alertSettings' + id + '" class="alert alert-danger alert-dismissible fade show" role="alert">\n' +
+                        '        Error, cannot save settings\n' +
+                        '        <button type="button" class="close" data-dismiss="alert" aria-label="Close">\n' +
+                        '            <span aria-hidden="true">&times;</span>\n' +
+                        '        </button>\n' +
+                        '    </div>');
+                }
+            });
+        }
+    </script>
+{% endblock %}

@@ -3,6 +3,8 @@ from datetime import datetime
 
 from flask import Flask, render_template, request
 from flask_socketio import SocketIO
+from pymysql import DatabaseError
+from serial import SerialException
 
 from Arduino import Arduino
 from Database import Database
@@ -13,6 +15,9 @@ __license__ = "GPL"
 __version__ = "2.0"
 __maintainer__ = __author__
 __email__ = "florian.mornet@bordeaux-inp.fr"
+
+from WS2812 import WS2812
+
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'secret!'
 socketio = SocketIO(app, logger=True)  # engineio_logger=True
@@ -219,6 +224,15 @@ def broadcast_status(status_type, status_title, status_text, status_val):
     status = {'type': status_type, 'title': status_title, 'text': status_text, 'val': status_val}
     print('Broadcasting new status: ' + str(status))
     socketio.emit('status', status, broadcast=True)
+
+    w = WS2812()
+    w.reset()
+    if status_val == 0:
+        w.enable_all(status_type)
+    else:
+        w.enable_n(int(status_val), status_type)
+    w.close()
+
     return status
 
 
@@ -235,19 +249,27 @@ def startup_check():
     try:
         db = Database()
         db.close()
-    except:
+    except DatabaseError:
         status = {'type': 'error', 'title': 'Error', 'text': 'Cannot open connection with the database', 'val': -1}
 
-    arduino = Arduino()
-    if not arduino.ser.is_open:
+    try:
+        arduino = Arduino()
+        arduino.close()
+    except SerialException:
         status = {'type': 'error', 'title': 'Error', 'text': 'Cannot open connection with Arduino', 'val': -1}
-    arduino.close()
 
     try:
         init_pumps()
         status = {'type': 'ready', 'title': 'Ready', 'text': 'Ready to make a new drink', 'val': -1}
-    except:
+    except OSError:
         status = {'type': 'error', 'title': 'Error', 'text': 'Cannot init GPIO', 'val': -1}
+
+    try:
+        w = WS2812()
+        w.reset()
+        w.close()
+    except (OSError, OverflowError):
+        status = {'type': 'error', 'title': 'Error', 'text': 'Cannot open SPI port for LED status', 'val': -1}
 
 
 if __name__ == '__main__':

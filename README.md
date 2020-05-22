@@ -13,7 +13,6 @@ More information: [https://fenix.tecnico.ulisboa.pt/disciplinas/AI514/2019-2020/
 - Add stop button
 - Add thread and continuous weight broadcast
 - Add glass capacity check
-- Add leds
 - Add edit/delete ingredients and recipes
 
 ## Specifications

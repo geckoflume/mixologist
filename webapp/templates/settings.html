@@ -28,13 +28,16 @@
                         <div class="form-group">
                             <label for="glassLevel">Current level:</label>
                             <div class="input-group">
-                                <input class="form-control form-control-solid" id="glassLevel" type="number" readonly>
+                                <input class="form-control form-control-solid" id="glassLevel" type="number" min="0"
+                                       value="0" readonly>
                                 <div class="input-group-append">
                                     <span class="input-group-text">mL</span>
                                 </div>
                             </div>
                         </div>
-                        <button type="submit" class="btn btn-secondary">Load cell tare</button>
+                        <button type="button" class="btn btn-secondary tare" data-toggle="modal"
+                                data-target="#modalTare" data-loadcellid="5" data-loadcellname="Glass">Load cell tare
+                        </button>
                         <button type="submit" class="btn btn-primary float-right">Apply</button>
                         <!-- TODO: glass settings -->
                     </form>
@@ -100,8 +103,10 @@
                                     </div>
                                 </div>
                             </div>
-                            <button type="button" class="btn btn-secondary">Load cell tare</button>
-                            <!-- TODO: call cell tare method -->
+                            <button type="button" class="btn btn-secondary" data-toggle="modal"
+                                    data-target="#modalTare" data-loadcellid="{{ b.id }}"
+                                    data-loadcellname="Bottle {{ b.id }}">Load cell tare
+                            </button>
                             <button type="submit" class="btn btn-primary float-right">Apply</button>
                         </form>
                     </div>
@@ -109,11 +114,68 @@
             </div>
         {% endfor %}
     </div>
+    <!-- Modal -->
+    <div class="modal fade" id="modalTare" tabindex="-1" role="dialog" aria-labelledby="modalTareLabel"
+         aria-hidden="true">
+        <div class="modal-dialog" role="document">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="modalTareLabel">Tare</h5>
+                    <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                        <span aria-hidden="true">&times;</span>
+                    </button>
+                </div>
+                <div class="modal-body">
+                    <p>Please place the Mixologist on a level stable surface and remove any load applied to the load
+                        cell.</p>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-primary" id="tareBtn">Tare</button>
+                </div>
+            </div>
+        </div>
+    </div>
 {% endblock %}
 
 
 {% block javascript %}
     <script>
+        let pageTitle = $('h1').parent();
+
+        $(document).ready(function () {
+            function parseLoadCells(msg) {
+                $('#glassLevel').val(msg.g);
+                $('#inputBottleLevel1').val(msg.b1);
+                $('#inputBottleLevel2').val(msg.b2);
+                $('#inputBottleLevel3').val(msg.b3);
+                $('#inputBottleLevel4').val(msg.b4);
+            }
+
+            parseLoadCells({{ load_cells | tojson }});
+            let socket = io.connect('http://' + document.domain + ':' + location.port);
+            socket.on('connect', function () {
+                socket.on('load_cells', parseLoadCells)
+            })
+        });
+
+        let tareBtn = $('#tareBtn');
+        $('#modalTare').on('show.bs.modal', function (event) {
+            let button = $(event.relatedTarget);
+            let loadCellId = button.data('loadcellid');
+            let loadCellName = button.data('loadcellname');
+            let modal = $(this);
+            modal.find('.modal-title').text('Tare ' + loadCellName);
+            tareBtn.data('loadcellid', loadCellId);
+            tareBtn.data('loadcellname', loadCellName);
+        })
+        tareBtn.click(function () {
+            console.log();
+            console.log("calling tare for " + $(this).data('loadcellid'));
+            tare($(this).data('loadcellid'), $(this).data('loadcellname'));
+            $('#modalTare').modal('hide');
+        });
+
         for (let i = 1; i < 5; i++) {
             let form = $('#formBottle' + i);
             form.submit(function () {
@@ -125,6 +187,31 @@
             });
         }
 
+        function tare(loadCellId, loadCellName) {
+            $.ajax({
+                type: 'post',
+                data: {'id': loadCellId},
+                success: function () {
+                    $('#alertTare' + loadCellId).alert('close');
+                    pageTitle.after('<div id="alertTare' + loadCellId + '" class="alert alert-success alert-dismissible fade show" role="alert">\n' +
+                        '        Load cell ' + loadCellId + ' (' + loadCellName + ') successfully tared!\n' +
+                        '        <button type="button" class="close" data-dismiss="alert" aria-label="Close">\n' +
+                        '            <span aria-hidden="true">&times;</span>\n' +
+                        '        </button>\n' +
+                        '    </div>');
+                },
+                error: function () {
+                    $('#alertTare' + loadCellId).alert('close');
+                    pageTitle.after('<div id="alertTare' + loadCellId + '" class="alert alert-danger alert-dismissible fade show" role="alert">\n' +
+                        '        Error, cannot tare load cell ' + loadCellId + ' (' + loadCellName + ')\n' +
+                        '        <button type="button" class="close" data-dismiss="alert" aria-label="Close">\n' +
+                        '            <span aria-hidden="true">&times;</span>\n' +
+                        '        </button>\n' +
+                        '    </div>');
+                }
+            });
+        }
+
         function applySettings(id) {
             let form = $('#formBottle' + id);
             $.ajax({
@@ -132,7 +219,7 @@
                 data: form.serialize() + "&id=" + id,
                 success: function () {
                     $('#alertSettings' + id).alert('close');
-                    form.before('<div id="alertSettings' + id + '" class="alert alert-success alert-dismissible fade show" role="alert">\n' +
+                    pageTitle.after('<div id="alertSettings' + id + '" class="alert alert-success alert-dismissible fade show" role="alert">\n' +
                         '        Settings saved!\n' +
                         '        <button type="button" class="close" data-dismiss="alert" aria-label="Close">\n' +
                         '            <span aria-hidden="true">&times;</span>\n' +
@@ -141,7 +228,7 @@
                 },
                 error: function () {
                     $('#alertSettings' + id).alert('close');
-                    form.before('<div id="alertSettings' + id + '" class="alert alert-danger alert-dismissible fade show" role="alert">\n' +
+                    pageTitle.after('<div id="alertSettings' + id + '" class="alert alert-danger alert-dismissible fade show" role="alert">\n' +
                         '        Error, cannot save settings\n' +
                         '        <button type="button" class="close" data-dismiss="alert" aria-label="Close">\n' +
                         '            <span aria-hidden="true">&times;</span>\n' +

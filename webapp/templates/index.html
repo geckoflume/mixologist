@@ -398,9 +398,10 @@
 
             for (const i of ingredients) {
                 let c = 'list-group-item';
-                let bottle = bottles.find(el => el.ingredient_id === i.id);
-                if (bottle) {
-                    if (bottle.actual_volume >= i.quantity) {
+                let candidateBottles = bottles.filter(el => el.ingredient_id === i.id);
+                if (candidateBottles.length > 0) {
+                    candidateBottles = bottles.filter(el => el.actual_volume >= i.quantity);
+                    if (candidateBottles.length > 0) {
                         c += ' list-group-item-success';
                     } else {
                         c += ' list-group-item-warning';

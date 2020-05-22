@@ -6,12 +6,15 @@ import pymysql
 class Database:
     def __init__(self):
         host = "127.0.0.1"
-        user = "root"
-        password = ""
+        user = "mixologist"
+        password = "password"
         db = "mixologist"
         self.con = pymysql.connect(host=host, user=user, password=password, db=db,
                                    cursorclass=pymysql.cursors.DictCursor)
         self.cur = self.con.cursor()
+
+    def close(self):
+        self.cur.close()
 
     def list_recipes(self):
         self.cur.execute("SELECT id, name, notes FROM recipes")
@@ -28,13 +31,22 @@ class Database:
         result = self.cur.fetchone()['COUNT(*)']
         return result
 
-    def recipe_name(self, cocktail_id):
+    def recipe_name(self, recipe_id):
         sql = "SELECT name FROM recipes WHERE id = %s"
-        self.cur.execute(sql, cocktail_id)
+        self.cur.execute(sql, recipe_id)
         result = self.cur.fetchone()['name']
         return result
 
-    def recipes_ingredients(self):
+    def recipe_ingredients(self, recipe_id):
+        sql = "SELECT id, name, quantity " \
+              "FROM recipes_ingredient_rel " \
+              "INNER JOIN ingredients ON ingredient_id = id " \
+              "WHERE recipe_id = %s"
+        self.cur.execute(sql, recipe_id)
+        result = self.cur.fetchall()
+        return result
+
+    def recipe_ingredients_rel(self):
         self.cur.execute("SELECT id, recipe_id, name, quantity "
                          "FROM recipes_ingredient_rel "
                          "INNER JOIN ingredients ON ingredient_id = id "
@@ -103,9 +115,9 @@ class Database:
         self.cur.execute(sql, (name, contents, capacity, enabled, bottle_id))
         self.con.commit()
 
-    def make_cocktail(self, cocktail_id):
+    def make_cocktail(self, recipe_id):
         sql = "INSERT INTO history (recipe_id, made_at) VALUES (%s, %s)"
-        self.cur.execute(sql, (cocktail_id, datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')))
+        self.cur.execute(sql, (recipe_id, datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')))
         self.con.commit()
 
     def history(self):
@@ -116,14 +128,26 @@ class Database:
 
     def list_recipes_with_ingredients(self):
         recipes = self.list_recipes()
-        recipes_ingredients = self.recipes_ingredients()
+        recipes_ingredients = self.recipe_ingredients_rel()
         for recipes_ingredient in recipes_ingredients:
             if 'ingredients' not in recipes[recipes_ingredient['recipe_id'] - 1]:
                 recipes[recipes_ingredient['recipe_id'] - 1]['ingredients'] = []
             recipes[recipes_ingredient['recipe_id'] - 1]['ingredients'].append(recipes_ingredient)
         return recipes
 
+    def recipe_with_ingredients(self, recipe_id):
+        recipe = {'name': self.recipe_name(recipe_id), 'ingredients': []}
+        recipe_ingredients = self.recipe_ingredients(recipe_id)
+        for recipe_ingredient in recipe_ingredients:
+            recipe['ingredients'].append(recipe_ingredient)
+        return recipe
+
     def insert_ingredient(self, ingredient_name, ingredient_alcohol):
         sql = "INSERT INTO ingredients (name, alcohol) VALUES (%s, %s)"
         self.cur.execute(sql, (ingredient_name, ingredient_alcohol))
+        self.con.commit()
+
+    def update_bottle_volume(self, bottle_id, volume):
+        sql = "UPDATE bottles SET actual_volume = %s WHERE id = %s"
+        self.cur.execute(sql, (volume, bottle_id))
         self.con.commit()

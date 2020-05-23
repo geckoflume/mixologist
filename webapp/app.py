@@ -206,6 +206,20 @@ def history():
     return render_template('history.html', history=cocktail_history)
 
 
+@app.route('/search', methods=['POST'])
+def search():
+    if 'query' in request.get_json():
+        print('New search query: ' + request.get_json()['query'])
+        db = Database()
+        cocktail_id = db.search(request.get_json()['query'])
+        db.close()
+        if cocktail_id:
+            make_cocktail(cocktail_id)
+            return return_code(True)
+        return return_code(False, 404)
+    return return_code(False)
+
+
 def update_volumes():
     arduino = Arduino()
     volumes = arduino.get_measure()
@@ -236,11 +250,11 @@ def broadcast_status(status_type, status_title, status_text, status_val):
     return status
 
 
-def return_code(success):
+def return_code(success, code=400):
     if success:
         return json.dumps({'success': success}), 200, {'ContentType': 'application/json'}
     else:
-        return json.dumps({'success': success}), 400, {'ContentType': 'application/json'}
+        return json.dumps({'success': success}), code, {'ContentType': 'application/json'}
 
 
 def startup_check():

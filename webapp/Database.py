@@ -151,3 +151,12 @@ class Database:
         sql = "UPDATE bottles SET actual_volume = %s WHERE id = %s"
         self.cur.execute(sql, (volume, bottle_id))
         self.con.commit()
+
+    def search(self, recipe_name):
+        recipe_name = ' '.join([w for w in recipe_name.split() if len(w) > 3])
+        sql = "SELECT DISTINCT id FROM recipes WHERE UPPER(name) LIKE UPPER(%s)"
+        self.cur.execute(sql, '%' + recipe_name + '%')
+        result = self.cur.fetchone()
+        if result:
+            result = result['id']
+        return result

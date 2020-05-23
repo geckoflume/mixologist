@@ -2,6 +2,7 @@
 -- CREATE DATABASE mixologist;
 ALTER DATABASE mixologist CHARACTER SET = utf8mb4 COLLATE = utf8mb4_bin;
 
+DROP TABLE IF EXISTS glass;
 DROP TABLE IF EXISTS bottles;
 DROP TABLE IF EXISTS history;
 DROP TABLE IF EXISTS recipes_ingredient_rel;
@@ -13,6 +14,15 @@ CREATE TABLE ingredients
     id      int(11) PRIMARY KEY AUTO_INCREMENT,
     name    varchar(255) NOT NULL,
     alcohol boolean      NOT NULL
+) ENGINE = InnoDB
+  DEFAULT CHARSET = utf8mb4
+  COLLATE utf8mb4_bin;
+
+CREATE TABLE glass
+(
+    id            int(11) PRIMARY KEY AUTO_INCREMENT,
+    capacity      int(11) NOT NULL,
+    actual_volume int(11) NOT NULL
 ) ENGINE = InnoDB
   DEFAULT CHARSET = utf8mb4
   COLLATE utf8mb4_bin;
@@ -32,8 +42,8 @@ CREATE TABLE bottles
 
 CREATE TABLE recipes
 (
-    id   int(11) PRIMARY KEY AUTO_INCREMENT,
-    name varchar(255) NOT NULL,
+    id    int(11) PRIMARY KEY AUTO_INCREMENT,
+    name  varchar(255) NOT NULL,
     notes varchar(255) NULL
 ) ENGINE = InnoDB
   DEFAULT CHARSET = utf8mb4
@@ -164,6 +174,9 @@ VALUES (1, 'Flat Water', 0),
        (99, 'Tonic water', 0),
        (100, 'Anise liqueur', 1),
        (101, 'Crème de framboise liqueur', 1);
+
+INSERT INTO glass (id, capacity, actual_volume)
+VALUES (1, 300, 0);
 
 INSERT INTO bottles (id, name, ingredient_id, capacity, actual_volume, enabled)
 VALUES (1, '', 1, 700, 0, 0),

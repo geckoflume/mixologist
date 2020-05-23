@@ -1,28 +1,35 @@
 import json
+import threading
 from datetime import datetime
 
 from flask import Flask, render_template, request
-from flask_socketio import SocketIO
+from flask_socketio import SocketIO, join_room
 from pymysql import DatabaseError
 from serial import SerialException
 
 from Arduino import Arduino
 from Database import Database
 from Pump import init_pumps, Pump
+from WS2812 import WS2812
 
 __author__ = "Florian Mornet"
 __license__ = "GPL"
-__version__ = "2.0"
+__version__ = "1.0"
 __maintainer__ = __author__
 __email__ = "florian.mornet@bordeaux-inp.fr"
-
-from WS2812 import WS2812
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'secret!'
 socketio = SocketIO(app, logger=True)  # engineio_logger=True
 status = {'type': 'error', 'title': 'Error', 'text': 'No hardware detected', 'val': -1}
 pumps = [Pump('bottle1'), Pump('bottle2'), Pump('bottle3'), Pump('bottle4')]
+
+arduino = None
+ws2812 = None
+loadcell_trigger = threading.Event()
+cocktail_trigger = threading.Event()
+settings_room = []
+index_room = []
 
 
 @app.context_processor
@@ -34,41 +41,50 @@ def inject():
     return dict(recipes_count=recipes_count, ingredients_count=ingredients_count)
 
 
-def prepare_brewing(cocktail, bottles):
+def prepare_brewing(cocktail, glass, bottles):
     sequence = []
+    target_volume = arduino.json_line['g']
 
     for ingredient in cocktail["ingredients"]:
         candidate_bottles = [b for b in bottles if b["enabled"]
                              and b["ingredient_id"] == ingredient["id"]
                              and b["actual_volume"] >= ingredient["quantity"]]
-        if not candidate_bottles:
+        if candidate_bottles:
+            sequence.append(
+                {'bottle': candidate_bottles[0]["id"], 'name': ingredient["name"], 'volume': ingredient["quantity"]})
+            target_volume += ingredient["quantity"]
+            if target_volume > glass['capacity']:
+                broadcast_status('error', 'Making ' + cocktail["name"],
+                                 'Cannot make your cocktail: Your glass would overflow.', 0)
+                return None
+
+        else:
             broadcast_status('error', 'Making ' + cocktail["name"],
-                             'Cannot make your cocktail. '
+                             'Cannot make your cocktail: '
                              'Please check that you have enough quantity of ' + ingredient["name"] +
                              ' in your bottles.', 0)
             return None
-        else:
-            sequence.append(
-                {'bottle': candidate_bottles[0]["id"], 'name': ingredient["name"], 'volume': ingredient["quantity"]})
-    return sequence
+    return sequence, target_volume
 
 
 def make_cocktail(cocktail_id):
     db = Database()
     cocktail = db.recipe_with_ingredients(cocktail_id)
+    glass = db.glass()
     bottles = db.bottles()
     broadcast_status('ready', 'Making ' + cocktail["name"], 'Starting cocktail...', 0)
-    sequence = prepare_brewing(cocktail, bottles)
+    sequence, target_volume = prepare_brewing(cocktail, glass, bottles)
     if sequence:
         success = True
+        arduino.target_glass_volume = target_volume
+        if not cocktail_trigger.isSet():
+            cocktail_trigger.set()
         for idx in range(len(sequence)):
             s = sequence[idx]
             broadcast_status('ready', 'Making ' + cocktail["name"], 'Pouring ' + s["name"], idx / len(sequence) * 100)
             pumps[s["bottle"] - 1].enable()
-            arduino = Arduino()
             wait = arduino.wait_for_glass_measure(s["volume"])
             pumps[s["bottle"] - 1].disable()
-            arduino.close()
             if not wait:
                 success = False
                 broadcast_status('error', 'Making ' + cocktail["name"], 'Pouring ' + s["name"] +
@@ -165,21 +181,26 @@ def settings():
             return return_code(True)
         elif 'id' in result:
             print('Request tare for load cell ' + result.get('id'))
-            arduino = Arduino()
+            ws2812.reset()
+            ws2812.enable_pos(result.get('id'), WS2812.ready)
             ret = arduino.tare(result.get('id'))
-            arduino.close()
+            ws2812.reset()
             return return_code(ret)
+        elif 'capacity' in result:
+            print('Applying settings for glass')
+            capacity = result.get('capacity')
+            db.update_glass_settings(capacity)
+            db.close()
+            return return_code(True)
         else:
             return return_code(False)
     else:
+        glass = db.glass()
         bottles = db.bottles()
         ingredients = db.ingredients()
         db.close()
-        arduino = Arduino()
-        load_cells = arduino.get_measure()
-        arduino.close()
         update_volumes()
-        return render_template('settings.html', bottles=bottles, ingredients=ingredients, load_cells=load_cells)
+        return render_template('settings.html', glass=glass, bottles=bottles, ingredients=ingredients)
 
 
 @app.route('/list_ingredients')
@@ -220,16 +241,56 @@ def search():
     return return_code(False)
 
 
-def update_volumes():
-    arduino = Arduino()
-    volumes = arduino.get_measure()
-    arduino.close()
+@socketio.on('settings')
+def join_settings():
+    if request.sid not in settings_room:
+        join_room('settings')
+        print(request.sid + " joined settings")
+        settings_room.append(request.sid)
+        if not loadcell_trigger.isSet():
+            loadcell_trigger.set()
+        print('Users in settings: ' + str(settings_room))
+    else:
+        print('Error, ' + request.sid + 'already in settings room')
 
+
+@socketio.on('index')
+def join_index():
+    if request.sid not in index_room:
+        join_room('index')
+        print(request.sid + " joined index")
+        index_room.append(request.sid)
+        if not loadcell_trigger.isSet():
+            loadcell_trigger.set()
+        print('Users in index: ' + str(index_room))
+    else:
+        print('Error, ' + request.sid + 'already in index room')
+
+
+@socketio.on('disconnect')
+def test_disconnect():
+    if request.sid in settings_room:
+        settings_room.remove(request.sid)
+        print(request.sid + ' has left the settings')
+        if len(settings_room) == 0 and len(index_room) == 0 and loadcell_trigger.isSet():
+            loadcell_trigger.clear()
+    if request.sid in index_room:
+        index_room.remove(request.sid)
+        print(request.sid + ' has left index')
+        if len(index_room) == 0 and cocktail_trigger.isSet():
+            cocktail_trigger.clear()
+        if len(index_room) == 0 and len(settings_room) == 0 and loadcell_trigger.isSet():
+            loadcell_trigger.clear()
+
+
+def update_volumes():
+    volumes = arduino.poll_once()
     db = Database()
     db.update_bottle_volume(1, volumes["b1"])
     db.update_bottle_volume(2, volumes["b2"])
     db.update_bottle_volume(3, volumes["b3"])
     db.update_bottle_volume(4, volumes["b4"])
+    db.update_glass_volume(volumes["g"])
     db.close()
 
 
@@ -237,15 +298,13 @@ def broadcast_status(status_type, status_title, status_text, status_val):
     global status
     status = {'type': status_type, 'title': status_title, 'text': status_text, 'val': status_val}
     print('Broadcasting new status: ' + str(status))
-    socketio.emit('status', status, broadcast=True)
+    socketio.emit('status', status, room='index')
 
-    w = WS2812()
-    w.reset()
-    if status_val == 0:
-        w.enable_all(status_type)
+    ws2812.reset()
+    if status_val == -1:
+        ws2812.enable_all(status_type)
     else:
-        w.enable_n(int(status_val), status_type)
-    w.close()
+        ws2812.enable_n(int(status_val), status_type)
 
     return status
 
@@ -259,6 +318,8 @@ def return_code(success, code=400):
 
 def startup_check():
     global status
+    global arduino
+    global ws2812
 
     try:
         db = Database()
@@ -269,6 +330,7 @@ def startup_check():
     try:
         arduino = Arduino()
         arduino.close()
+        arduino.open()
     except SerialException:
         status = {'type': 'error', 'title': 'Error', 'text': 'Cannot open connection with Arduino', 'val': -1}
 
@@ -279,14 +341,21 @@ def startup_check():
         status = {'type': 'error', 'title': 'Error', 'text': 'Cannot init GPIO', 'val': -1}
 
     try:
-        w = WS2812()
-        w.reset()
-        w.close()
+        ws2812 = WS2812()
+        ws2812.reset()
+        ws2812.close()
+        ws2812.open()
     except (OSError, OverflowError):
         status = {'type': 'error', 'title': 'Error', 'text': 'Cannot open SPI port for LED status', 'val': -1}
 
 
 if __name__ == '__main__':
     startup_check()
+    arduino_settings_thread = threading.Thread(name='ArduinoSettingsThread', target=arduino.broadcast_loadcells,
+                                               args=(loadcell_trigger, socketio,))
+    arduino_cocktail_thread = threading.Thread(name='ArduinoCocktailThread', target=arduino.update_progression,
+                                               args=(cocktail_trigger, socketio, ws2812,))
+    arduino_settings_thread.start()
+    arduino_cocktail_thread.start()
     # app.run(debug=True, host='0.0.0.0')
     socketio.run(app, debug=True, host='0.0.0.0', log_output=True)

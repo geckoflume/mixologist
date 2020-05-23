@@ -11,12 +11,12 @@
                     <h6 class="m-0 font-weight-bold text-primary">Glass configuration</h6>
                 </div>
                 <div class="card-body">
-                    <form novalidate>
+                    <form id="formGlass" novalidate>
                         <div class="form-group">
                             <label for="inputGlassCapacity">Capacity:</label>
                             <div class="input-group">
-                                <input class="form-control form-control-solid" id="inputGlassCapacity"
-                                       type="number" min="0" placeholder="700" required>
+                                <input class="form-control form-control-solid" id="inputGlassCapacity" name="capacity"
+                                       type="number" min="0" placeholder="700" value="{{ glass.capacity }}" required>
                                 <div class="input-group-append">
                                     <span class="input-group-text">mL</span>
                                 </div>
@@ -152,10 +152,10 @@
                 $('#inputBottleLevel4').val(msg.b4);
             }
 
-            parseLoadCells({{ load_cells | tojson }});
             let socket = io.connect('http://' + document.domain + ':' + location.port);
             socket.on('connect', function () {
-                socket.on('load_cells', parseLoadCells)
+                socket.on('load_cells', parseLoadCells);
+                socket.emit('settings');
             })
         });
 
@@ -186,6 +186,14 @@
                 return false;
             });
         }
+        let glassForm = $('#formGlass');
+        glassForm.submit(function () {
+            if (glassForm[0].checkValidity() === true) {
+                applyGlass()
+            }
+            glassForm.addClass('was-validated');
+            return false;
+        });
 
         function tare(loadCellId, loadCellName) {
             $.ajax({
@@ -204,6 +212,31 @@
                     $('#alertTare' + loadCellId).alert('close');
                     pageTitle.after('<div id="alertTare' + loadCellId + '" class="alert alert-danger alert-dismissible fade show" role="alert">\n' +
                         '        Error, cannot tare load cell ' + loadCellId + ' (' + loadCellName + ')\n' +
+                        '        <button type="button" class="close" data-dismiss="alert" aria-label="Close">\n' +
+                        '            <span aria-hidden="true">&times;</span>\n' +
+                        '        </button>\n' +
+                        '    </div>');
+                }
+            });
+        }
+
+        function applyGlass() {
+            $.ajax({
+                type: 'post',
+                data: glassForm.serialize(),
+                success: function () {
+                    $('#alertSettingsGlass').alert('close');
+                    pageTitle.after('<div id="alertSettingsGlass" class="alert alert-success alert-dismissible fade show" role="alert">\n' +
+                        '        Settings saved!\n' +
+                        '        <button type="button" class="close" data-dismiss="alert" aria-label="Close">\n' +
+                        '            <span aria-hidden="true">&times;</span>\n' +
+                        '        </button>\n' +
+                        '    </div>');
+                },
+                error: function () {
+                    $('#alertSettingsGlass').alert('close');
+                    pageTitle.after('<div id="alertSettingsGlass" class="alert alert-danger alert-dismissible fade show" role="alert">\n' +
+                        '        Error, cannot save settings\n' +
                         '        <button type="button" class="close" data-dismiss="alert" aria-label="Close">\n' +
                         '            <span aria-hidden="true">&times;</span>\n' +
                         '        </button>\n' +

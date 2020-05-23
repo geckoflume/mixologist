@@ -120,15 +120,18 @@
                 <div class="card-body">
                     {% for b in bottles %}
                         {% if b.enabled %}
-                            <h4 class="small font-weight-bold">Bottle {{ b.id }} - {{ b.name }} ({{ b.contents }})
-                                <span class="float-right">{{ (b.percentage)|round|int }}%</span>
-                            </h4>
-                            <div class="progress mb-4">
-                                <div class="progress-bar {% if b.percentage > 66.66 %}bg-success{% elif b.percentage > 33.33 %}bg-warning{% else %}bg-danger{% endif %}"
-                                     role="progressbar"
-                                     style="width: {{ b.percentage }}%"
-                                     aria-valuenow="{{ b.percentage }}" aria-valuemin="0"
-                                     aria-valuemax="100">{{ b.actual_volume }}/{{ b.capacity }}mL
+                            <div class="bottle" data-bottle="b{{ b.id }}" data-bottle-capacity="{{ b.capacity }}">
+                                <h4 class="small font-weight-bold">Bottle {{ b.id }} - {{ b.name }} ({{ b.contents }})
+                                    <span class="float-right">{{ (b.percentage)|round|int }}%</span>
+                                </h4>
+                                <div class="progress mb-4">
+                                    <div data-bottle="b{{ b.id }}"
+                                         class="progress-bar {% if b.percentage > 66.66 %}bg-success{% elif b.percentage > 33.33 %}bg-warning{% else %}bg-danger{% endif %}"
+                                         role="progressbar"
+                                         style="width: {{ b.percentage }}%"
+                                         aria-valuenow="{{ b.percentage }}" aria-valuemin="0"
+                                         aria-valuemax="100">{{ b.actual_volume }}/{{ b.capacity }}mL
+                                    </div>
                                 </div>
                             </div>
                         {% endif %}
@@ -444,10 +447,38 @@
                 progressBarVal(msg.val);
             }
 
+            function parseLoadCells(msg) {
+                $('.bottle').each(function () {
+                    let bottleId = $(this).data('bottle');
+                    let bottleCapacity = $(this).data('bottle-capacity');
+                    let percentage = msg[bottleId] / bottleCapacity * 100;
+                    $(this).find('h4 span').text(Math.round(percentage) + '%');
+                    let progressbar = $(this).find('div div');
+                    progressbar.text(msg[bottleId] + '/' + bottleCapacity + 'mL');
+                    progressbar.css('width', percentage + '%');
+                    progressbar.attr('aria-valuenow', percentage);
+
+                    let bgRegex = new RegExp('\\s(bg-' + statusStyles + ')', 'g');
+                    progressbar.removeClass(function (index, className) {
+                        return (className.match(bgRegex) || []).join(' ');
+                    });
+                    if (percentage > 66.66)
+                        progressbar.addClass('bg-success');
+                    else if (percentage > 33.33)
+                        progressbar.addClass('bg-warning');
+                    else
+                        progressbar.addClass('bg-danger');
+                });
+            }
+
             parseStatus({{ status | tojson }});
+            parseLoadCells({{ status | tojson }});
             let socket = io.connect('http://' + document.domain + ':' + location.port);
             socket.on('connect', function () {
                 socket.on('status', parseStatus)
+                socket.on('progression', progressBarVal);
+                socket.on('load_cells', parseLoadCells);
+                socket.emit('index');
             })
 
             $("#selectCocktail").change(updateIngredients);

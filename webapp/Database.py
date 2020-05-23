@@ -79,6 +79,11 @@ class Database:
         result = self.cur.fetchall()
         return [row["name"] for row in result], [row["total"] for row in result]
 
+    def glass(self):
+        self.cur.execute("SELECT actual_volume, capacity FROM glass WHERE id=1")
+        result = self.cur.fetchone()
+        return result
+
     def bottles(self):
         self.cur.execute("SELECT b.id, b.name, ingredient_id, i.name as contents, actual_volume, capacity, "
                          "(actual_volume/capacity)*100 as percentage, enabled "
@@ -108,6 +113,11 @@ class Database:
         for ingredient, volume in zip(cocktail_ingredients, cocktail_volumes):
             sql = "INSERT INTO recipes_ingredient_rel (recipe_id, ingredient_id, quantity) VALUES (%s, %s, %s)"
             self.cur.execute(sql, (inserted_id, ingredient, volume))
+        self.con.commit()
+
+    def update_glass_settings(self, capacity):
+        sql = "UPDATE glass SET capacity = %s WHERE id = 1"
+        self.cur.execute(sql, capacity)
         self.con.commit()
 
     def update_bottle_settings(self, name, contents, capacity, enabled, bottle_id):
@@ -145,6 +155,11 @@ class Database:
     def insert_ingredient(self, ingredient_name, ingredient_alcohol):
         sql = "INSERT INTO ingredients (name, alcohol) VALUES (%s, %s)"
         self.cur.execute(sql, (ingredient_name, ingredient_alcohol))
+        self.con.commit()
+
+    def update_glass_volume(self, volume):
+        sql = "UPDATE glass SET actual_volume = %s WHERE id = 1"
+        self.cur.execute(sql, volume)
         self.con.commit()
 
     def update_bottle_volume(self, bottle_id, volume):

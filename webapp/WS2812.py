@@ -7,11 +7,17 @@ class WS2812:
     error = [10, 255, 0]
     warning = [220, 255, 25]
     success = [255, 10, 100]
+    white = [255, 255, 255]
+    black = [0, 0, 0]
 
     def __init__(self):
         self.spi = spidev.SpiDev()
         self.spi.open(0, 0)
         self.leds_count = 18
+        self.current_color = WS2812.white
+
+    def open(self):
+        self.spi.open(0, 0)
 
     def close(self):
         self.spi.close()
@@ -33,25 +39,40 @@ class WS2812:
 
     def enable_all(self, color=None):
         if color is None:
-            color = [0, 0, 0]
+            color = WS2812.black
         else:
             color = self.parse_color(color)
+        self.current_color = color
         self.write2812([color] * self.leds_count)
 
     def enable_one(self, led, color=None):
         if color is None:
-            color = [255, 255, 255]
+            color = self.current_color
         else:
             color = self.parse_color(color)
-        d = [[0, 0, 0]] * self.leds_count
+        self.current_color = color
+        d = [WS2812.black] * self.leds_count
         d[led % self.leds_count] = color
         self.write2812(d)
 
-    def enable_n(self, n, color):
+    def enable_pos(self, pos, color=None):
+        if pos == '1':
+            self.enable_one(1, color)
+        elif pos == '2':
+            self.enable_one(4, color)
+        elif pos == '3':
+            self.enable_one(13, color)
+        elif pos == '4':
+            self.enable_one(15, color)
+        elif pos == '5':
+            self.enable_one(8, color)
+
+    def enable_n(self, n, color=None):
         if color is None:
-            color = [255, 255, 255]
+            color = self.current_color
         else:
             color = self.parse_color(color)
+        self.current_color = color
         d = [color] * int((n * self.leds_count / 100))
         self.write2812(d)
 

@@ -412,7 +412,7 @@
                 let c = 'list-group-item';
                 let candidateBottles = bottles.filter(el => el.ingredient_id === i.id);
                 if (candidateBottles.length > 0) {
-                    candidateBottles = bottles.filter(el => el.actual_volume >= i.quantity);
+                    candidateBottles = candidateBottles.filter(el => el.actual_volume >= i.quantity);
                     if (candidateBottles.length > 0) {
                         c += ' list-group-item-success';
                     } else {

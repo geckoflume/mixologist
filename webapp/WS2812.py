@@ -16,16 +16,10 @@ class WS2812:
         self.dev = dev
         self.leds_count = led_count
         self.current_color = WS2812.white
-        self.open()
-
-    def open(self):
         self.spi.open(self.bus, self.dev)
 
-    def close(self):
-        self.spi.close()
-
     def reset(self):
-        self.enable_all()
+        self.enable_all(WS2812.black)
 
     def parse_color(self, color):
         if isinstance(color, str):
@@ -37,14 +31,15 @@ class WS2812:
                 color = self.warning
             elif color == 'success':
                 color = self.success
+        if color != WS2812.black:
+            self.current_color = color
         return color
 
     def enable_all(self, color=None):
         if color is None:
-            color = WS2812.black
+            color = self.current_color
         else:
             color = self.parse_color(color)
-        self.current_color = color
         self.write2812([color] * self.leds_count)
 
     def enable_one(self, led, color=None):
@@ -52,7 +47,6 @@ class WS2812:
             color = self.current_color
         else:
             color = self.parse_color(color)
-        self.current_color = color
         d = [WS2812.black] * self.leds_count
         d[led % self.leds_count] = color
         self.write2812(d)
@@ -74,7 +68,6 @@ class WS2812:
             color = self.current_color
         else:
             color = self.parse_color(color)
-        self.current_color = color
         d = [color] * int((n * self.leds_count / 100))
         self.write2812(d)
 

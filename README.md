@@ -12,6 +12,7 @@ More information: [https://fenix.tecnico.ulisboa.pt/disciplinas/AI514/2019-2020/
 - Add HTTPS layer
 - Add security/auth
 - Add edit/delete ingredients and recipes
+- Update readme
 
 ## Specifications
 
@@ -38,9 +39,3 @@ Optional:
 sudo apt install apache2 php php-json php-mbstring php-zip php-gd php-xml php-curl php-mysql
 
 ```
-
-## Valuable resources:
-
-- https://sweetcode.io/flask-python-3-mysql/
-- https://www.diffordsguide.com/encyclopedia/1045/cocktails/top-100-most-frequently-appearing-cocktail-ingredients
-- https://linuxhint.com/install_phpmyadmin_debian_10/

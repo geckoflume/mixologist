@@ -103,14 +103,14 @@ def prepare_brewing(cocktail, glass, bottles):
             if target_volume > glass['capacity']:
                 broadcast_status('error', 'Making ' + cocktail["name"],
                                  'Cannot make your cocktail: Your glass would overflow.', 0)
-                return None
+                return None, None
 
         else:
             broadcast_status('error', 'Making ' + cocktail["name"],
                              'Cannot make your cocktail: '
                              'Please check that you have enough quantity of ' + ingredient["name"] +
                              ' in your bottles.', 0)
-            return None
+            return None, None
     return sequence, target_volume
 
 
@@ -128,7 +128,7 @@ def make_cocktail(cocktail_id):
             cocktail_trigger.set()
         for idx in range(len(sequence)):
             s = sequence[idx]
-            broadcast_status('ready', 'Making ' + cocktail["name"], 'Pouring ' + s["name"], idx / len(sequence) * 100)
+            broadcast_status('ready', 'Making ' + cocktail["name"], 'Pouring ' + s["name"])
             pumps[s["bottle"] - 1].enable()
             wait = arduino.wait_for_glass_measure(s["volume"])
             pumps[s["bottle"] - 1].disable()
@@ -353,7 +353,7 @@ def update_volumes():
 
 def broadcast_status(status_type, status_title, status_text, status_val=None):
     global status
-    if not status_val:
+    if status_val is None:
         status_val = status['val']
     status = {'type': status_type, 'title': status_title, 'text': status_text, 'val': status_val}
     print('Broadcasting new status: ' + str(status))

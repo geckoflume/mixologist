@@ -11,7 +11,6 @@ More information: [https://fenix.tecnico.ulisboa.pt/disciplinas/AI514/2019-2020/
 ## TODO
 - Add HTTPS layer
 - Add security/auth
-- Add stop button
 - Add edit/delete ingredients and recipes
 
 ## Specifications

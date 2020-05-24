@@ -1,15 +1,24 @@
 import datetime
+import re
 
 import pymysql
 
 
+def remove_articles(text):
+    return re.sub('(a|an|one|un|une|um|uma)\s+', '', text)
+
+
 class Database:
-    def __init__(self):
-        host = "127.0.0.1"
-        user = "mixologist"
-        password = "password"
-        db = "mixologist"
-        self.con = pymysql.connect(host=host, user=user, password=password, db=db,
+    def __init__(self, host, user, password, db):
+        self.host = host
+        self.user = user
+        self.password = password
+        self.db = db
+        self.con = None
+        self.cur = None
+
+    def open(self):
+        self.con = pymysql.connect(host=self.host, user=self.user, password=self.password, db=self.db,
                                    cursorclass=pymysql.cursors.DictCursor)
         self.cur = self.con.cursor()
 
@@ -168,7 +177,7 @@ class Database:
         self.con.commit()
 
     def search(self, recipe_name):
-        recipe_name = ' '.join([w for w in recipe_name.split() if len(w) > 3])
+        recipe_name = remove_articles(recipe_name)
         sql = "SELECT DISTINCT id FROM recipes WHERE UPPER(name) LIKE UPPER(%s)"
         self.cur.execute(sql, '%' + recipe_name + '%')
         result = self.cur.fetchone()

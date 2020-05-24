@@ -154,8 +154,8 @@
 
             let socket = io.connect('http://' + document.domain + ':' + location.port);
             socket.on('connect', function () {
-                socket.on('load_cells', parseLoadCells);
                 socket.emit('settings');
+                socket.on('load_cells', parseLoadCells);
             })
         });
 

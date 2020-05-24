@@ -6407,10 +6407,6 @@ button.bg-dark:focus {
   content: "";
 }
 
-.d-none {
-  display: none !important;
-}
-
 .d-inline {
   display: inline !important;
 }
@@ -6591,6 +6587,10 @@ button.bg-dark:focus {
   .d-print-inline-flex {
     display: inline-flex !important;
   }
+}
+
+.d-none {
+  display: none !important;
 }
 
 .embed-responsive {

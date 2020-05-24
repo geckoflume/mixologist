@@ -10,14 +10,16 @@ class WS2812:
     white = [255, 255, 255]
     black = [0, 0, 0]
 
-    def __init__(self):
+    def __init__(self, bus, dev, led_count):
         self.spi = spidev.SpiDev()
-        self.spi.open(0, 0)
-        self.leds_count = 18
+        self.bus = bus
+        self.dev = dev
+        self.leds_count = led_count
         self.current_color = WS2812.white
+        self.open()
 
     def open(self):
-        self.spi.open(0, 0)
+        self.spi.open(self.bus, self.dev)
 
     def close(self):
         self.spi.close()

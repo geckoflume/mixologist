@@ -1,6 +1,10 @@
 {% extends "layout.html" %}
 {% set active_page = "index" %}
 {% set page_desc = "Dashboard" %}
+{% block heading %}
+    <a href="#" id="abortBtn" class="d-sm-inline-block btn btn-sm btn-danger shadow-sm d-none">
+        <i class="fas fa-ban fa-sm text-white-50"></i> Stop</a>
+{% endblock %}
 {% block content %}
     <div class="row">
         <!-- Status Card -->
@@ -297,19 +301,15 @@
 
         let form = $('#formCocktail');
         form.submit(function () {
-            makeDrink();
-            return false;
-        });
-
-        function makeDrink() {
             $.ajax({
                 type: 'post',
                 data: form.serialize(),
                 error: function () {
-                    statusError("Error", "Server error, unable to make the drink");
+                    statusError("", "Server error, unable to make the drink");
                 }
             });
-        }
+            return false;
+        });
 
         let statusStyles = '(primary|success|warning|danger)';
         let statusIcons = '(info-circle|check-circle|exclamation-circle|times-circle)';
@@ -318,6 +318,15 @@
         let statusMessage = $('#statusMessage');
         let progressBar = $('#progressBar');
         let statusIcon = $('#statusIcon');
+        let abortBtn = $('#abortBtn');
+
+        abortBtn.click(function (e) {
+            e.stopPropagation();
+            $.ajax({
+                type: 'post',
+                data: {'abort': true}
+            });
+        });
 
         function statusClear() {
             let borderRegex = new RegExp('\\sborder-left-' + statusStyles, 'g');
@@ -344,7 +353,7 @@
             statusTitle.addClass("text-danger");
             progressBar.addClass("bg-danger");
             statusIcon.addClass("fa-times-circle");
-            statusTitle.text(title);
+            statusTitle.text("Error: " + title);
             statusMessage.text(msg);
         }
 
@@ -430,6 +439,11 @@
 
         $(document).ready(function () {
             function parseStatus(msg) {
+                if (abortBtn.hasClass('d-none') && (msg.type !== 'success' && msg.type !== 'error') && msg.title.match("^Making ")) {
+                    abortBtn.removeClass('d-none');
+                } else if (!abortBtn.hasClass('d-none') && (msg.type === 'success' || msg.type === 'error')) {
+                    abortBtn.addClass('d-none');
+                }
                 switch (msg.type) {
                     case 'error':
                         statusError(msg.title, msg.text);
@@ -475,10 +489,10 @@
             parseLoadCells({{ status | tojson }});
             let socket = io.connect('http://' + document.domain + ':' + location.port);
             socket.on('connect', function () {
+                socket.emit('index');
                 socket.on('status', parseStatus)
                 socket.on('progression', progressBarVal);
                 socket.on('load_cells', parseLoadCells);
-                socket.emit('index');
             })
 
             $("#selectCocktail").change(updateIngredients);

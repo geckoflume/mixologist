@@ -1,4 +1,6 @@
+import configparser
 import json
+import logging
 import threading
 from datetime import datetime
 
@@ -18,14 +20,59 @@ __version__ = "1.0"
 __maintainer__ = __author__
 __email__ = "florian.mornet@bordeaux-inp.fr"
 
+status = {'type': 'error', 'title': 'Startup check', 'text': 'No hardware detected', 'val': -1}
+config = configparser.ConfigParser()
+config.read('config.ini')
+
+# Debug
+debug = config.getboolean('Mixologist', 'Debug', fallback=False)
+if not debug:
+    log = logging.getLogger('werkzeug')
+    log.setLevel(logging.ERROR)
+
+# DB check
+db_host = config.get('Database', 'Host', fallback="127.0.0.1")
+db_user = config.get('Database', 'User', fallback="root")
+db_password = config.get('Database', 'Password', fallback="")
+db_db = config.get('Database', 'Db', fallback="mixologist")
+try:
+    db = Database(db_host, db_user, db_password, db_db)
+    db.open()
+except DatabaseError:
+    status = {'type': 'error', 'title': 'Startup check', 'text': 'Cannot open connection with the database', 'val': -1}
+
+# Arduino check
+arduino_port = config.get('Arduino', 'Port', fallback="/dev/ttyACM0")
+arduino_baudrate = config.getint('Arduino', 'BaudRate', fallback=57600)
+arduino_con_timeout = config.getint('Arduino', 'ConTimeout', fallback=5)
+arduino_pump_timeout = config.getint('Arduino', 'PumpTimeout', fallback=60)
+try:
+    arduino = Arduino(arduino_port, arduino_baudrate, arduino_con_timeout, arduino_pump_timeout)
+except SerialException:
+    status = {'type': 'error', 'title': 'Startup check', 'text': 'Cannot open connection with Arduino', 'val': -1}
+
+# Pumps GPIO check
+try:
+    init_pumps()
+    status = {'type': 'ready', 'title': 'Ready', 'text': 'Ready to make a new drink', 'val': -1}
+except OSError:
+    status = {'type': 'error', 'title': 'Startup check', 'text': 'Cannot init GPIO', 'val': -1}
+
+# WS2812 LEDs check
+ws2812_port = config.getint('WS2812', 'Bus', fallback=0)
+ws2812_dev = config.getint('WS2812', 'Device', fallback=0)
+ws2812_led_count = config.getint('WS2812', 'LEDCount', fallback=10)
+try:
+    ws2812 = WS2812(ws2812_port, ws2812_dev, ws2812_led_count)
+    ws2812.reset()
+except (OSError, OverflowError):
+    status = {'type': 'error', 'title': 'Startup check', 'text': 'Cannot open SPI port for LED status', 'val': -1}
+
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'secret!'
-socketio = SocketIO(app, logger=True)  # engineio_logger=True
-status = {'type': 'error', 'title': 'Error', 'text': 'No hardware detected', 'val': -1}
-pumps = [Pump('bottle1'), Pump('bottle2'), Pump('bottle3'), Pump('bottle4')]
+socketio = SocketIO(app, logger=debug, engineio_logger=debug)
 
-arduino = None
-ws2812 = None
+pumps = [Pump('bottle1'), Pump('bottle2'), Pump('bottle3'), Pump('bottle4')]
 loadcell_trigger = threading.Event()
 cocktail_trigger = threading.Event()
 settings_room = []
@@ -34,7 +81,7 @@ index_room = []
 
 @app.context_processor
 def inject():
-    db = Database()
+    db.open()
     recipes_count = db.recipes_count()
     ingredients_count = db.ingredients_count()
     db.close()
@@ -68,7 +115,7 @@ def prepare_brewing(cocktail, glass, bottles):
 
 
 def make_cocktail(cocktail_id):
-    db = Database()
+    db.open()
     cocktail = db.recipe_with_ingredients(cocktail_id)
     glass = db.glass()
     bottles = db.bottles()
@@ -85,16 +132,22 @@ def make_cocktail(cocktail_id):
             pumps[s["bottle"] - 1].enable()
             wait = arduino.wait_for_glass_measure(s["volume"])
             pumps[s["bottle"] - 1].disable()
-            if not wait:
+            if not wait:  # timeout or abort
                 success = False
-                broadcast_status('error', 'Making ' + cocktail["name"], 'Pouring ' + s["name"] +
-                                 ' timed out, please check that the pumps aren\'t '
-                                 'clogged and that you have enough ingredient', idx / len(sequence) * 100)
+                if arduino.abort:
+                    broadcast_status('error', 'Making ' + cocktail["name"], 'Aborted')
+                    arduino.abort = False
+                else:
+                    broadcast_status('error', 'Making ' + cocktail["name"], 'Pouring ' + s["name"] +
+                                     ' timed out, please check that the pumps aren\'t '
+                                     'clogged and that you have enough ingredient')
                 break
         if success:
             db.make_cocktail(cocktail_id)
             broadcast_status('success', 'Making ' + cocktail["name"],
                              'Cocktail finished at ' + datetime.now().strftime("%H:%M:%S"), 100)
+        if cocktail_trigger.isSet():
+            cocktail_trigger.clear()
     db.close()
 
 
@@ -107,10 +160,14 @@ def index():
             cocktail_id = result.get('cocktail')
             make_cocktail(cocktail_id)
             return return_code(True)
+        elif 'abort' in result:
+            broadcast_status('error', '', 'Aborting cocktail...')
+            arduino.abort = True
+            return return_code(True)
         else:
             return return_code(False)
     else:
-        db = Database()
+        db.open()
         recipes = db.list_recipes_with_ingredients()
         recipes = sorted(recipes, key=lambda k: k['name'].lower())  # to sort by name
         count_days, date_labels = db.cocktails_per_day()
@@ -126,7 +183,7 @@ def index():
 
 @app.route('/new_recipe', methods=['GET', 'POST'])
 def new_recipe():
-    db = Database()
+    db.open()
     if request.method == 'POST':
         result = request.form
         if 'name' in result and 'ingredients[]' in result and 'volumes[]' in result:
@@ -148,7 +205,7 @@ def new_recipe():
 
 @app.route('/new_ingredient', methods=['GET', 'POST'])
 def new_ingredient():
-    db = Database()
+    db.open()
     if request.method == 'POST':
         result = request.form
         if 'name' in result:
@@ -166,7 +223,7 @@ def new_ingredient():
 
 @app.route('/settings', methods=['GET', 'POST'])
 def settings():
-    db = Database()
+    db.open()
     if request.method == 'POST':
         result = request.form
         if 'name' in result and 'contents' in result and 'capacity' in result and 'id' in result:
@@ -205,7 +262,7 @@ def settings():
 
 @app.route('/list_ingredients')
 def list_ingredients():
-    db = Database()
+    db.open()
     ingredients = db.ingredients()
     db.close()
     return render_template('list_ingredients.html', ingredients=ingredients)
@@ -213,7 +270,7 @@ def list_ingredients():
 
 @app.route('/list_recipes')
 def list_recipes():
-    db = Database()
+    db.open()
     recipes = db.list_recipes_with_ingredients()
     db.close()
     return render_template('list_recipes.html', recipes=recipes)
@@ -221,7 +278,7 @@ def list_recipes():
 
 @app.route('/history')
 def history():
-    db = Database()
+    db.open()
     cocktail_history = db.history()
     db.close()
     return render_template('history.html', history=cocktail_history)
@@ -231,7 +288,7 @@ def history():
 def search():
     if 'query' in request.get_json():
         print('New search query: ' + request.get_json()['query'])
-        db = Database()
+        db.open()
         cocktail_id = db.search(request.get_json()['query'])
         db.close()
         if cocktail_id:
@@ -285,7 +342,7 @@ def test_disconnect():
 
 def update_volumes():
     volumes = arduino.poll_once()
-    db = Database()
+    db.open()
     db.update_bottle_volume(1, volumes["b1"])
     db.update_bottle_volume(2, volumes["b2"])
     db.update_bottle_volume(3, volumes["b3"])
@@ -294,8 +351,10 @@ def update_volumes():
     db.close()
 
 
-def broadcast_status(status_type, status_title, status_text, status_val):
+def broadcast_status(status_type, status_title, status_text, status_val=None):
     global status
+    if not status_val:
+        status_val = status['val']
     status = {'type': status_type, 'title': status_title, 'text': status_text, 'val': status_val}
     print('Broadcasting new status: ' + str(status))
     socketio.emit('status', status, room='index')
@@ -316,46 +375,11 @@ def return_code(success, code=400):
         return json.dumps({'success': success}), code, {'ContentType': 'application/json'}
 
 
-def startup_check():
-    global status
-    global arduino
-    global ws2812
-
-    try:
-        db = Database()
-        db.close()
-    except DatabaseError:
-        status = {'type': 'error', 'title': 'Error', 'text': 'Cannot open connection with the database', 'val': -1}
-
-    try:
-        arduino = Arduino()
-        arduino.close()
-        arduino.open()
-    except SerialException:
-        status = {'type': 'error', 'title': 'Error', 'text': 'Cannot open connection with Arduino', 'val': -1}
-
-    try:
-        init_pumps()
-        status = {'type': 'ready', 'title': 'Ready', 'text': 'Ready to make a new drink', 'val': -1}
-    except OSError:
-        status = {'type': 'error', 'title': 'Error', 'text': 'Cannot init GPIO', 'val': -1}
-
-    try:
-        ws2812 = WS2812()
-        ws2812.reset()
-        ws2812.close()
-        ws2812.open()
-    except (OSError, OverflowError):
-        status = {'type': 'error', 'title': 'Error', 'text': 'Cannot open SPI port for LED status', 'val': -1}
-
-
 if __name__ == '__main__':
-    startup_check()
     arduino_settings_thread = threading.Thread(name='ArduinoSettingsThread', target=arduino.broadcast_loadcells,
                                                args=(loadcell_trigger, socketio,))
     arduino_cocktail_thread = threading.Thread(name='ArduinoCocktailThread', target=arduino.update_progression,
                                                args=(cocktail_trigger, socketio, ws2812,))
     arduino_settings_thread.start()
     arduino_cocktail_thread.start()
-    # app.run(debug=True, host='0.0.0.0')
-    socketio.run(app, debug=True, host='0.0.0.0', log_output=True)
+    socketio.run(app, debug=debug, host='0.0.0.0', log_output=debug)

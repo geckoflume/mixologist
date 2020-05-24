@@ -152,7 +152,7 @@
                 $('#inputBottleLevel4').val(msg.b4);
             }
 
-            let socket = io.connect('http://' + document.domain + ':' + location.port);
+            let socket = io.connect('https://' + document.domain + ':' + location.port);
             socket.on('connect', function () {
                 socket.emit('settings');
                 socket.on('load_cells', parseLoadCells);

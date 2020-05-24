@@ -13,6 +13,7 @@ pyserial = "*"
 pya20 = {git = "https://github.com/duxingkei33/orangepi_PC_gpio_pyH3.git"}
 spidev = "*"
 requests = "*"
+pyopenssl = "*"
 
 [requires]
 python_version = "3.7"

@@ -388,4 +388,4 @@ if __name__ == '__main__':
                                                args=(cocktail_trigger, socketio, ws2812,))
     arduino_settings_thread.start()
     arduino_cocktail_thread.start()
-    socketio.run(app, debug=debug, host='0.0.0.0', log_output=debug)
+    socketio.run(app, debug=debug, host='0.0.0.0', log_output=debug, ssl_context='adhoc')

@@ -14,21 +14,21 @@ More information: [https://fenix.tecnico.ulisboa.pt/disciplinas/AI514/2019-2020/
 - Cocktail making only if the quantities of the required ingredients are available
 - Alerts on empty bottles / full glass
 - Storage, management of recipes in a database
-- Voice control and interaction
+- Google Assistant voice control (recipe search)
 
-## TODO
-- Add HTTPS layer
-- Add security/auth
+## Enhancements
+- Add authentication
 - Add edit/delete ingredients and recipes
 - Computation of the number of cocktails that it is possible to make with the current bottles
 
 ## Specifications
+This application is written in Python 3, built around the Flask framework for routing.  
+Data is stored in a MySQL database and can be updated using HTTP REST methods.
 
 ### Database specification
 ![Database relationship diagram](database.png "Database relationship diagram")
 
 ## Prerequisites
-
 ### Hardware
 - Orange Pi PC or other GPIO-capable board
 - 4 peristaltic pumps
@@ -40,7 +40,7 @@ More information: [https://fenix.tecnico.ulisboa.pt/disciplinas/AI514/2019-2020/
 ### Software
 - Arduino IDE
 - Python 3
-- Python dependencies (flask, pymysql, flask-socketio, pyA20, spidev, pyserial, requests - can be installed with the [Pipfile](Pipfile), please read [How to build](#how-to-build))
+- Python dependencies (flask, pymysql, flask-socketio, pyA20, spidev, pyserial, requests, pyopenssl - can be installed with the [Pipfile](Pipfile), please read [How to build](#how-to-build))
 - MySQL/MariaDB server
 - IFTTT account
 
@@ -66,7 +66,6 @@ Default pin connections are the following:
 | 5        | DOUT <br/>SCK   | 12 <br/>13  |
 
 ### Software
-
 #### Arduino
 Upload the [arduino/calibration/calibration.ino](arduino/calibration/calibration.ino) sketch to your Arduino and note down the calibration value for each load cell in the provided Serial assistant.  
 Edit the [arduino/json_read_5x/json_read_5x.ino](arduino/json_read_5x/json_read_5x.ino) sketch:
@@ -83,16 +82,17 @@ Upload this sketch to your Arduino and connect it to your Orange Pi.
 #### IFTTT (enable Google Assistant and notifications)
 Create an IFTTT account on [https://ifttt.com/](https://ifttt.com/), then enable the [Google Assistant service](https://ifttt.com/google_assistant) and the [Webhooks service](https://ifttt.com/maker_webhooks).  
 Once done, note down your API key, and create two applets:
-![IFTTT applets](IFTTT.png "IFTTT applets")
+![IFTTT applets](ifttt.png "IFTTT applets")
 
 #### Orange Pi
 Replace database, Arduino, WS2812 and IFTTT connection settings in [webapp/config.ini](webapp/config.ini).  
 If needed, replace the relay GPIO pins in [webapp/Pump.py](webapp/Pump.py). 
 ```
-sudo apt install python3 python3-pip python3-dev python3-setuptools mariadb-server mariadb-client
+sudo apt install python3 python3-pip python3-dev python3-setuptools mariadb-server mariadb-client libffi-dev
 pip install --user pipenv
 git clone https://github.com/geckoflume/mixologist.git
 cd mixologist
 pipenv install
 python3 webapp/app.py
 ```
+The webserver is now started on https://ORANGE_PI_IP:5000/.

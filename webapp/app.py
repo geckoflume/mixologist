@@ -31,7 +31,6 @@ if not debug:
     log = logging.getLogger('werkzeug')
     log.setLevel(logging.ERROR)
 
-
 # IFTTT
 IFTTT_url = config.get('IFTTT', 'URL', fallback='')
 
@@ -273,11 +272,30 @@ def list_ingredients():
     return render_template('list_ingredients.html', ingredients=ingredients)
 
 
+def cocktail_count(ingredients, bottles):
+    count = None
+    for ingredient in ingredients:
+        candidate_bottles = [b for b in bottles if b["enabled"]
+                             and b["ingredient_id"] == ingredient["id"]
+                             and b["actual_volume"] >= ingredient["quantity"]]
+        if candidate_bottles:
+            new_var = int(max(bottle['actual_volume'] for bottle in candidate_bottles) / ingredient["quantity"])
+            if count is None or new_var < count:
+                count = new_var
+        else:
+            return 0
+    return count
+
+
 @app.route('/list_recipes')
 def list_recipes():
+    update_volumes()
     db.open()
+    bottles = db.bottles()
     recipes = db.list_recipes_with_ingredients()
     db.close()
+    for r in recipes:
+        r['qty'] = cocktail_count(r['ingredients'], bottles)
     return render_template('list_recipes.html', recipes=recipes)
 
 
@@ -369,7 +387,7 @@ def broadcast_status(status_type, status_title, status_text, status_val=None):
     if status_val == -1:
         ws2812.enable_all(status_type)
     else:
-        ws2812.enable_n(int(status_val), status_type)
+        ws2812.enable_percentage(int(status_val), status_type)
 
     return status
 

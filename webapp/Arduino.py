@@ -130,5 +130,5 @@ class Arduino:
                     print("actual vol: " + str(self.json_line['g']) + " target: " + str(
                         self.target_glass_volume) + " (" + str(percentage) + "%)")
                     socketio.emit('progression', percentage, room='index')
-                    ws2812.enable_n(percentage)
+                    ws2812.enable_percentage(percentage)
                 self.lock.release()

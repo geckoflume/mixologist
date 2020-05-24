@@ -15,11 +15,12 @@ More information: [https://fenix.tecnico.ulisboa.pt/disciplinas/AI514/2019-2020/
 - Alerts on empty bottles / full glass
 - Storage, management of recipes in a database
 - Google Assistant voice control (recipe search)
+- Notifications on status update
+- Computation of the number of cocktails that it is possible to make with the current bottles
 
 ## Enhancements
 - Add authentication
 - Add edit/delete ingredients and recipes
-- Computation of the number of cocktails that it is possible to make with the current bottles
 
 ## Specifications
 This application is written in Python 3, built around the Flask framework for routing.  

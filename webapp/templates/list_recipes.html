@@ -20,6 +20,7 @@
                         <th>Name</th>
                         <th>Notes</th>
                         <th>Ingredients</th>
+                        <th>Quantity available</th>
                         <th></th>
                     </tr>
                     </thead>
@@ -29,6 +30,7 @@
                         <th>Name</th>
                         <th>Notes</th>
                         <th>Ingredients</th>
+                        <th>Quantity available</th>
                         <th></th>
                     </tr>
                     </tfoot>
@@ -45,11 +47,14 @@
                                     {% endfor %}
                                 </ul>
                             </td>
+                            <td>{{ row.qty }}</td>
                             <td>
                                 <div class="btn-group btn-group-sm" role="group">
                                     <button type="button" class="btn btn-danger">Delete</button>
                                     <button type="button" class="btn btn-primary">Edit</button>
-                                    <button type="button" class="btn btn-primary">Make</button>
+                                    <button type="button" class="btn btn-primary makeBtn"
+                                            {% if row.qty == 0 %}disabled{% endif %}>Make
+                                    </button>
                                     <!-- TODO: Button action -->
                                 </div>
                             </td>
@@ -72,8 +77,22 @@
                     "className": "text-center",
                     "searchable": false,
                     "sortable": false,
-                    "targets": [4]
+                    "targets": [5]
                 }]
+            });
+
+            $('.makeBtn').click(function () {
+                let id = $(this).parent().parent().parent().find('td').first().text();
+                window.location.replace("/");
+                $.ajax({
+                    type: 'post',
+                    url: '/',
+                    data: {'cocktail': id},
+                    success: function () {
+                    },
+                    error: function () {
+                    }
+                });
             });
         });
     </script>

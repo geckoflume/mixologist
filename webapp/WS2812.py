@@ -63,12 +63,13 @@ class WS2812:
         elif pos == '5':
             self.enable_one(8, color)
 
-    def enable_n(self, n, color=None):
+    def enable_percentage(self, n, color=None):
         if color is None:
             color = self.current_color
         else:
             color = self.parse_color(color)
-        d = [color] * int((n * self.leds_count / 100))
+        n_leds = int((n * self.leds_count / 100))
+        d = [color] * n_leds + [WS2812.black] * (self.leds_count - n_leds)
         self.write2812(d)
 
     def write2812(self, data):

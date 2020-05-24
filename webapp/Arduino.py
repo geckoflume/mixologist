@@ -96,7 +96,6 @@ class Arduino:
                 return not (self.abort or is_timeout)
 
     def broadcast_loadcells(self, e, socketio):
-        print('started')
         while not e.isSet():
             e.wait()
             old_json_line = {}

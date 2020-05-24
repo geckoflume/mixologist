@@ -4,6 +4,7 @@ import logging
 import threading
 from datetime import datetime
 
+import requests
 from flask import Flask, render_template, request
 from flask_socketio import SocketIO, join_room
 from pymysql import DatabaseError
@@ -29,6 +30,10 @@ debug = config.getboolean('Mixologist', 'Debug', fallback=False)
 if not debug:
     log = logging.getLogger('werkzeug')
     log.setLevel(logging.ERROR)
+
+
+# IFTTT
+IFTTT_url = config.get('IFTTT', 'URL', fallback='')
 
 # DB check
 db_host = config.get('Database', 'Host', fallback="127.0.0.1")
@@ -359,6 +364,7 @@ def broadcast_status(status_type, status_title, status_text, status_val=None):
     print('Broadcasting new status: ' + str(status))
     socketio.emit('status', status, room='index')
 
+    requests.post(IFTTT_url, json={'value1': status_title, 'value2': status_text})
     ws2812.reset()
     if status_val == -1:
         ws2812.enable_all(status_type)

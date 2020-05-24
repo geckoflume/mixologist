@@ -50,8 +50,7 @@
                             <td>{{ row.qty }}</td>
                             <td>
                                 <div class="btn-group btn-group-sm" role="group">
-                                    <button type="button" class="btn btn-danger">Delete</button>
-                                    <button type="button" class="btn btn-primary">Edit</button>
+                                    <button type="button" class="btn btn-danger deleteBtn">Delete</button>
                                     <button type="button" class="btn btn-primary makeBtn"
                                             {% if row.qty == 0 %}disabled{% endif %}>Make
                                     </button>
@@ -72,7 +71,7 @@
     <script src="https://cdn.datatables.net/1.10.21/js/dataTables.bootstrap4.min.js"></script>
     <script>
         $(document).ready(function () {
-            $('#dataTable').DataTable({
+            let datatable = $('#dataTable').DataTable({
                 "columnDefs": [{
                     "className": "text-center",
                     "searchable": false,
@@ -81,8 +80,36 @@
                 }]
             });
 
+            $('.deleteBtn').click(function () {
+                let tr = $(this).parents('tr')
+                let id = tr.find('td').first().text();
+                $.ajax({
+                    type: 'delete',
+                    data: {'cocktail': id},
+                    success: function () {
+                        $('#alertDelete').alert('close');
+                        pageTitle.after('<div id="alertDelete" class="alert alert-success alert-dismissible fade show" role="alert">\n' +
+                            '        Ingredient successfully deleted.\n' +
+                            '        <button type="button" class="close" data-dismiss="alert" aria-label="Close">\n' +
+                            '            <span aria-hidden="true">&times;</span>\n' +
+                            '        </button>\n' +
+                            '    </div>');
+                        datatable.row(tr).remove().draw();
+                    },
+                    error: function () {
+                        $('#alertDelete').alert('close');
+                        pageTitle.after('<div id="alertDelete" class="alert alert-danger alert-dismissible fade show" role="alert">\n' +
+                            '        Error, cannot delete ingredient. Please check that no bottles are configured to use it.\n' +
+                            '        <button type="button" class="close" data-dismiss="alert" aria-label="Close">\n' +
+                            '            <span aria-hidden="true">&times;</span>\n' +
+                            '        </button>\n' +
+                            '    </div>');
+                    }
+                });
+            });
+
             $('.makeBtn').click(function () {
-                let id = $(this).parent().parent().parent().find('td').first().text();
+                let id = $(this).parents('tr').find('td').first().text();
                 window.location.replace("/");
                 $.ajax({
                     type: 'post',

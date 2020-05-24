@@ -20,7 +20,6 @@ More information: [https://fenix.tecnico.ulisboa.pt/disciplinas/AI514/2019-2020/
 
 ## Enhancements
 - Add authentication
-- Add edit/delete ingredients and recipes
 
 ## Specifications
 This application is written in Python 3, built around the Flask framework for routing.  

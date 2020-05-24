@@ -42,6 +42,7 @@ db_db = config.get('Database', 'Db', fallback="mixologist")
 try:
     db = Database(db_host, db_user, db_password, db_db)
     db.open()
+    db.close()
 except DatabaseError:
     status = {'type': 'error', 'title': 'Startup check', 'text': 'Cannot open connection with the database', 'val': -1}
 
@@ -85,10 +86,10 @@ index_room = []
 
 @app.context_processor
 def inject():
-    db.open()
-    recipes_count = db.recipes_count()
-    ingredients_count = db.ingredients_count()
-    db.close()
+    local_db = db.open()
+    recipes_count = local_db.recipes_count()
+    ingredients_count = local_db.ingredients_count()
+    local_db.close()
     return dict(recipes_count=recipes_count, ingredients_count=ingredients_count)
 
 
@@ -119,10 +120,10 @@ def prepare_brewing(cocktail, glass, bottles):
 
 
 def make_cocktail(cocktail_id):
-    db.open()
-    cocktail = db.recipe_with_ingredients(cocktail_id)
-    glass = db.glass()
-    bottles = db.bottles()
+    local_db = db.open()
+    cocktail = local_db.recipe_with_ingredients(cocktail_id)
+    glass = local_db.glass()
+    bottles = local_db.bottles()
     broadcast_status('ready', 'Making ' + cocktail["name"], 'Starting cocktail...', 0)
     sequence, target_volume = prepare_brewing(cocktail, glass, bottles)
     if sequence:
@@ -152,7 +153,7 @@ def make_cocktail(cocktail_id):
                              'Cocktail finished at ' + datetime.now().strftime("%H:%M:%S"), 100)
         if cocktail_trigger.isSet():
             cocktail_trigger.clear()
-    db.close()
+    local_db.close()
 
 
 @app.route('/', methods=['GET', 'POST'])
@@ -171,15 +172,15 @@ def index():
         else:
             return return_code(False)
     else:
-        db.open()
+        local_db = db.open()
         recipes = db.list_recipes_with_ingredients()
         recipes = sorted(recipes, key=lambda k: k['name'].lower())  # to sort by name
-        count_days, date_labels = db.cocktails_per_day()
-        top_labels, count_top = db.top_cocktails()
+        count_days, date_labels = local_db.cocktails_per_day()
+        top_labels, count_top = local_db.top_cocktails()
         top_css_classes = ['text-primary', 'text-success', 'text-info', 'text-warning', 'text-danger', 'text-light']
-        bottles = db.bottles()
-        bottles_simple = db.bottles_simple()
-        db.close()
+        bottles = local_db.bottles()
+        bottles_simple = local_db.bottles_simple()
+        local_db.close()
         return render_template('index.html', recipes=recipes, day_values=count_days, date_labels=date_labels,
                                top_labels=top_labels, top_values=count_top, top_zip=zip(top_labels, top_css_classes),
                                bottles=bottles, bottles_simple=bottles_simple, status=status)
@@ -187,7 +188,7 @@ def index():
 
 @app.route('/new_recipe', methods=['GET', 'POST'])
 def new_recipe():
-    db.open()
+    local_db = db.open()
     if request.method == 'POST':
         result = request.form
         if 'name' in result and 'ingredients[]' in result and 'volumes[]' in result:
@@ -195,29 +196,29 @@ def new_recipe():
             cocktail_notes = result.get('notes') if result.get('notes') else None
             cocktail_ingredients = result.getlist('ingredients[]')
             cocktail_volumes = result.getlist('volumes[]')
-            db.insert_recipe(cocktail_name, cocktail_notes, cocktail_ingredients, cocktail_volumes)
-            socketio.emit('recipes_count', db.recipes_count(), broadcast=True)
-            db.close()
+            local_db.insert_recipe(cocktail_name, cocktail_notes, cocktail_ingredients, cocktail_volumes)
+            socketio.emit('recipes_count', local_db.recipes_count(), broadcast=True)
+            local_db.close()
             return return_code(True)
         else:
             return return_code(False)
     else:
-        ingredients = db.ingredients()
-        db.close()
+        ingredients = local_db.ingredients()
+        local_db.close()
         return render_template('new_recipe.html', ingredients=ingredients)
 
 
 @app.route('/new_ingredient', methods=['GET', 'POST'])
 def new_ingredient():
-    db.open()
+    local_db = db.open()
     if request.method == 'POST':
         result = request.form
         if 'name' in result:
             ingredient_name = result.get('name')
             ingredient_alcohol = '1' if result.get('alcohol') == 'on' else '0'
-            db.insert_ingredient(ingredient_name, ingredient_alcohol)
-            socketio.emit('ingredients_count', db.ingredients_count(), broadcast=True)
-            db.close()
+            local_db.insert_ingredient(ingredient_name, ingredient_alcohol)
+            socketio.emit('ingredients_count', local_db.ingredients_count(), broadcast=True)
+            local_db.close()
             return return_code(True)
         else:
             return return_code(False)
@@ -227,18 +228,18 @@ def new_ingredient():
 
 @app.route('/settings', methods=['GET', 'POST'])
 def settings():
-    db.open()
     if request.method == 'POST':
         result = request.form
         if 'name' in result and 'contents' in result and 'capacity' in result and 'id' in result:
+            local_db = db.open()
             print('Applying settings for bottle ' + result.get('id'))
             name = result.get('name')
             contents = result.get('contents')
             capacity = result.get('capacity')
             bottle_id = result.get('id')
             enabled = '1' if result.get('enabled') == 'on' else '0'
-            db.update_bottle_settings(name, contents, capacity, enabled, bottle_id)
-            db.close()
+            local_db.update_bottle_settings(name, contents, capacity, enabled, bottle_id)
+            local_db.close()
             return return_code(True)
         elif 'id' in result:
             print('Request tare for load cell ' + result.get('id'))
@@ -248,27 +249,39 @@ def settings():
             ws2812.reset()
             return return_code(ret)
         elif 'capacity' in result:
+            local_db = db.open()
             print('Applying settings for glass')
             capacity = result.get('capacity')
-            db.update_glass_settings(capacity)
-            db.close()
+            local_db.update_glass_settings(capacity)
+            local_db.close()
             return return_code(True)
         else:
             return return_code(False)
     else:
-        glass = db.glass()
-        bottles = db.bottles()
-        ingredients = db.ingredients()
-        db.close()
+        local_db = db.open()
+        glass = local_db.glass()
+        bottles = local_db.bottles()
+        ingredients = local_db.ingredients()
+        local_db.close()
         update_volumes()
         return render_template('settings.html', glass=glass, bottles=bottles, ingredients=ingredients)
 
 
-@app.route('/list_ingredients')
+@app.route('/list_ingredients', methods=['GET', 'DELETE'])
 def list_ingredients():
-    db.open()
-    ingredients = db.ingredients()
-    db.close()
+    if request.method == 'DELETE':
+        result = request.form
+        if 'ingredient' in result:
+            ingredient_id = result.get('ingredient')
+            local_db = db.open()
+            ret = local_db.delete_ingredient(ingredient_id)
+            if ret:
+                socketio.emit('ingredients_count', local_db.ingredients_count(), broadcast=True)
+            local_db.close()
+            return return_code(ret)
+    local_db = db.open()
+    ingredients = local_db.ingredients()
+    local_db.close()
     return render_template('list_ingredients.html', ingredients=ingredients)
 
 
@@ -287,13 +300,23 @@ def cocktail_count(ingredients, bottles):
     return count
 
 
-@app.route('/list_recipes')
+@app.route('/list_recipes', methods=['GET', 'DELETE'])
 def list_recipes():
+    if request.method == 'DELETE':
+        result = request.form
+        if 'cocktail' in result:
+            cocktail_id = result.get('cocktail')
+            local_db = db.open()
+            ret = local_db.delete_recipe(cocktail_id)
+            if ret:
+                socketio.emit('recipes_count', local_db.recipes_count(), broadcast=True)
+            local_db.close()
+            return return_code(ret)
     update_volumes()
-    db.open()
-    bottles = db.bottles()
-    recipes = db.list_recipes_with_ingredients()
-    db.close()
+    local_db = db.open()
+    bottles = local_db.bottles()
+    recipes = local_db.list_recipes_with_ingredients()
+    local_db.close()
     for r in recipes:
         r['qty'] = cocktail_count(r['ingredients'], bottles)
     return render_template('list_recipes.html', recipes=recipes)
@@ -301,9 +324,9 @@ def list_recipes():
 
 @app.route('/history')
 def history():
-    db.open()
+    local_db = db.open()
     cocktail_history = db.history()
-    db.close()
+    local_db.close()
     return render_template('history.html', history=cocktail_history)
 
 
@@ -311,9 +334,9 @@ def history():
 def search():
     if 'query' in request.get_json():
         print('New search query: ' + request.get_json()['query'])
-        db.open()
-        cocktail_id = db.search(request.get_json()['query'])
-        db.close()
+        local_db = db.open()
+        cocktail_id = local_db.search(request.get_json()['query'])
+        local_db.close()
         if cocktail_id:
             make_cocktail(cocktail_id)
             return return_code(True)
@@ -365,13 +388,13 @@ def test_disconnect():
 
 def update_volumes():
     volumes = arduino.poll_once()
-    db.open()
-    db.update_bottle_volume(1, volumes["b1"])
-    db.update_bottle_volume(2, volumes["b2"])
-    db.update_bottle_volume(3, volumes["b3"])
-    db.update_bottle_volume(4, volumes["b4"])
-    db.update_glass_volume(volumes["g"])
-    db.close()
+    local_db = db.open()
+    local_db.update_bottle_volume(1, volumes["b1"])
+    local_db.update_bottle_volume(2, volumes["b2"])
+    local_db.update_bottle_volume(3, volumes["b3"])
+    local_db.update_bottle_volume(4, volumes["b4"])
+    local_db.update_glass_volume(volumes["g"])
+    local_db.close()
 
 
 def broadcast_status(status_type, status_title, status_text, status_val=None):

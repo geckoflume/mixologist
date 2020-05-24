@@ -2,6 +2,7 @@ import datetime
 import re
 
 import pymysql
+from pymysql import IntegrityError
 
 
 def remove_articles(text):
@@ -21,9 +22,11 @@ class Database:
         self.con = pymysql.connect(host=self.host, user=self.user, password=self.password, db=self.db,
                                    cursorclass=pymysql.cursors.DictCursor)
         self.cur = self.con.cursor()
+        return self
 
     def close(self):
         self.cur.close()
+        self.con.close()
 
     def list_recipes(self):
         self.cur.execute("SELECT id, name, notes FROM recipes")
@@ -149,9 +152,10 @@ class Database:
         recipes = self.list_recipes()
         recipes_ingredients = self.recipe_ingredients_rel()
         for recipes_ingredient in recipes_ingredients:
-            if 'ingredients' not in recipes[recipes_ingredient['recipe_id'] - 1]:
-                recipes[recipes_ingredient['recipe_id'] - 1]['ingredients'] = []
-            recipes[recipes_ingredient['recipe_id'] - 1]['ingredients'].append(recipes_ingredient)
+            recipe = next(item for item in recipes if item['id'] == recipes_ingredient['recipe_id'])
+            if 'ingredients' not in recipe:
+                recipe['ingredients'] = []
+            recipe['ingredients'].append(recipes_ingredient)
         return recipes
 
     def recipe_with_ingredients(self, recipe_id):
@@ -184,3 +188,26 @@ class Database:
         if result:
             result = result['id']
         return result
+
+    def delete_ingredient(self, ingredient_id):
+        sql = "DELETE FROM recipes_ingredient_rel WHERE ingredient_id = %s"
+        self.cur.execute(sql, ingredient_id)
+        sql = "DELETE FROM ingredients WHERE id = %s"
+        try:
+            ret = self.cur.execute(sql, ingredient_id)
+            self.con.commit()
+        except IntegrityError:
+            return False
+        return ret > 0
+
+    def delete_recipe(self, recipe_id):
+        sql = "DELETE FROM history WHERE recipe_id = %s"
+        self.cur.execute(sql, recipe_id)
+        sql = "DELETE FROM recipes_ingredient_rel WHERE recipe_id = %s"
+        ret = self.cur.execute(sql, recipe_id)
+        if ret > 0:
+            sql = "DELETE FROM recipes WHERE id = %s"
+            ret = self.cur.execute(sql, recipe_id)
+            self.con.commit()
+            return ret > 0
+        return False

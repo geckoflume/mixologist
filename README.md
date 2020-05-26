@@ -84,6 +84,9 @@ Create an IFTTT account on [https://ifttt.com/](https://ifttt.com/), then enable
 Once done, note down your API key, and create two applets:
 ![IFTTT applets](ifttt.png "IFTTT applets")
 
+#### MySQL database
+Load the [init.sql](init.sql) file to populate your database and note down your connection settings.
+
 #### Orange Pi
 Replace database, Arduino, WS2812 and IFTTT connection settings in [webapp/config.ini](webapp/config.ini).  
 If needed, replace the relay GPIO pins in [webapp/Pump.py](webapp/Pump.py). 

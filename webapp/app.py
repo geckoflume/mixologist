@@ -145,7 +145,7 @@ def make_cocktail(cocktail_id):
                 else:
                     broadcast_status('error', 'Making ' + cocktail["name"], 'Pouring ' + s["name"] +
                                      ' timed out, please check that the pumps aren\'t '
-                                     'clogged and that you have enough ingredient')
+                                     'clogged and that you have enough ingredient', -1)
                 break
         if success:
             db.make_cocktail(cocktail_id)

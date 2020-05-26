@@ -51,9 +51,8 @@ class Database:
 
     def recipe_ingredients(self, recipe_id):
         sql = "SELECT id, name, quantity " \
-              "FROM recipes_ingredient_rel " \
-              "INNER JOIN ingredients ON ingredient_id = id " \
-              "WHERE recipe_id = %s"
+              "FROM recipes_ingredient_rel, ingredients " \
+              "WHERE recipe_id = %s AND ingredient_id = id"
         self.cur.execute(sql, recipe_id)
         result = self.cur.fetchall()
         return result

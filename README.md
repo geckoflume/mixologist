@@ -20,6 +20,7 @@ More information: [https://fenix.tecnico.ulisboa.pt/disciplinas/AI514/2019-2020/
 
 ## Enhancements
 - Add authentication
+- Add ingredients / recipes editing
 
 ## Specifications
 This application is written in Python 3, built around the Flask framework for routing.  
@@ -30,9 +31,9 @@ Data is stored in a MySQL database and can be updated using HTTP REST methods.
 
 ## Prerequisites
 ### Hardware
-- Orange Pi PC or other GPIO-capable board
-- 4 peristaltic pumps
-- 4 relay module to drive the pumps
+- Orange Pi PC or other GPIO-capable board (preferably supporting the pyA20 library to make it work right away)
+- 4 (peristaltic) pumps
+- 4 relays module to drive the pumps
 - An Arduino
 - 5 load cells modules
 - 5 HX711 ADC modules
